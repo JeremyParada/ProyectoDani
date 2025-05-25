@@ -1,15 +1,17 @@
-module.exports = async (req, res, next) => {
-    const token = req.headers['authorization'];
+const AuthController = require('../controllers/AuthController');
 
-    if (!token) {
-        return res.status(401).send({ message: 'No token provided.' });
-    }
+async function routes(fastify, options) {
+  // Register user
+  fastify.post('/register', AuthController.register);
+  
+  // Login user
+  fastify.post('/login', AuthController.login);
+  
+  // Get current user (protected route)
+  fastify.get('/me', {
+    preValidation: [fastify.authenticate],
+    handler: AuthController.getMe
+  });
+}
 
-    try {
-        const decoded = await jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (error) {
-        return res.status(401).send({ message: 'Unauthorized!' });
-    }
-};
+module.exports = routes;
