@@ -1,17 +1,25 @@
-
 services:
   api-gateway:
     build: ./api-gateway
     ports:
-      - "3000:3000"  # Expose to host
+      - "3000:3000"
     environment:
       - NODE_ENV=development
       - JWT_SECRET=your_jwt_secret
+      - PORT=3000
+      - HOST=0.0.0.0
     depends_on:
-      - auth-service
-      - document-service
-      - financial-service
-      - ocr-service
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   auth-service:
     build: ./auth-service
@@ -20,7 +28,23 @@ services:
       - JWT_SECRET=your_jwt_secret
       - DATABASE_URL=postgres://user:password@postgres:5432/auth_db
     ports:
-      - "3001:3001"  # For direct testing
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s  # Give it more time to initialize
+    networks:
+      - app-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   document-service:
     build: ./document-service
@@ -34,6 +58,8 @@ services:
       - MINIO_SECRET_KEY=minioadmin
     ports:
       - "3002:3002"  # For direct testing
+    networks:
+      - app-network
 
   financial-service:
     build: ./financial-service
@@ -43,6 +69,8 @@ services:
       - DATABASE_URL=postgres://user:password@postgres:5432/financial_db
     ports:
       - "3003:3003"  # For direct testing
+    networks:
+      - app-network
 
   ocr-service:
     build: ./ocr-service
@@ -51,17 +79,28 @@ services:
       - REDIS_URL=redis://redis:6379
     ports:
       - "8000:8000"  # For direct testing
+    networks:
+      - app-network
 
   postgres:
     image: postgres:15
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-      - POSTGRES_MULTIPLE_DATABASES=auth_db,document_db,financial_db
     ports:
-      - "5432:5432"  # For external DB access
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - app-network
+    restart: always
 
   minio:
     image: minio/minio
@@ -74,6 +113,8 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    networks:
+      - app-network
 
   redis:
     image: redis:7
@@ -81,8 +122,18 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
   minio_data:
   redis_data:
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

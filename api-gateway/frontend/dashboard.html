@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Finandoc</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .dashboard-container {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    
+    .content-area {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .upload-area {
+      border: 2px dashed #ccc;
+      padding: 30px;
+      text-align: center;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <div class="header">
+      <div>
+        <h1>Finandoc Dashboard</h1>
+        <p>Bienvenido a tu centro de gestión financiera</p>
+      </div>
+      <button id="logout" class="btn secondary">Cerrar sesión</button>
+    </div>
+    
+    <div class="content-area">
+      <div class="card">
+        <h2>Documentos Recientes</h2>
+        <p>No hay documentos subidos recientemente</p>
+        
+        <div class="upload-area">
+          <p>Arrastra archivos aquí o</p>
+          <input type="file" id="document-upload" accept=".pdf,.jpg,.jpeg,.png">
+          <button id="upload-btn" class="btn">Subir documento</button>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>Resumen Financiero</h2>
+        <p>No hay transacciones disponibles</p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Check authentication
+    document.addEventListener('DOMContentLoaded', function() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/login.html'; // Redirect to login instead of index
+        return;
+      }
+      
+      // Logout handler
+      document.getElementById('logout').addEventListener('click', function() {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+      });
+      
+      // File upload handler
+      document.getElementById('upload-btn').addEventListener('click', async function() {
+        const fileInput = document.getElementById('document-upload');
+        if (!fileInput.files[0]) {
+          alert('Por favor seleccione un archivo');
+          return;
+        }
+        
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        
+        try {
+          const response = await fetch('/api/documents/upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formData
+          });
+          
+          console.log('Respuesta HTTP:', response.status, response.statusText);
+          
+          let data;
+          try {
+            data = await response.json();
+            console.log('Datos de respuesta:', data);
+          } catch (e) {
+            console.error('Error al procesar la respuesta JSON:', e);
+            data = { message: 'Error al procesar la respuesta del servidor' };
+          }
+          
+          if (response.ok) {
+            alert('Documento subido exitosamente');
+            // Aquí actualizaríamos la UI con el nuevo documento
+          } else {
+            alert(`Error: ${data.message || 'Error desconocido'}`);
+          }
+        } catch (error) {
+          console.error('Error subiendo documento:', error);
+          alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

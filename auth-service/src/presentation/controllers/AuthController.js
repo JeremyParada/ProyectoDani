@@ -1,38 +1,21 @@
-const AuthController = require('../controllers/AuthController');
-const jwt = require('jsonwebtoken');cture/repositories/UserRepository');
+const bcrypt = require('bcrypt');
+const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
-async function routes(fastify, options) {ler = {
-  // Register user
-  fastify.post('/register', AuthController.register);ry {
-        const { username, email, password } = request.body;
-  // Login user
-  fastify.post('/login', AuthController.login);
-  await UserRepository.findByEmail(email);
-  // Get current user (protected route)ingUser) {
-  fastify.get('/me', {code(400).send({ message: 'User already exists' });
-    preValidation: [fastify.authenticate],
-    handler: AuthController.getMe 
-  });    // Hash password
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-};    }        return res.status(401).send({ message: 'Unauthorized!' });    } catch (error) {        next();        req.user = decoded;        const decoded = await jwt.verify(token, process.env.JWT_SECRET);    try {    }        return res.status(401).send({ message: 'No token provided.' });    if (!token) {    const token = req.headers['authorization'];module.exports = async (req, res, next) => {module.exports = routes;}      const salt = await bcrypt.genSalt(10);
+const AuthController = {
+  async register(request, reply) {
+    try {
+      const { username, email, password } = request.body;
+      
+      request.log.info(`Attempting to register user with email: ${email}`);
+      
+      // Check if user already exists
+      const existingUser = await UserRepository.findByEmail(email);
+      if (existingUser) {
+        return reply.code(400).send({ message: 'User already exists' });
+      }
+      
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
       
       // Create user
@@ -45,6 +28,7 @@ async function routes(fastify, options) {ler = {
       // Remove password from response
       const { password: _, ...userWithoutPassword } = user;
       
+      request.log.info(`User registered successfully: ${email}`);
       return reply.code(201).send(userWithoutPassword);
     } catch (error) {
       request.log.error(error);
@@ -69,7 +53,7 @@ async function routes(fastify, options) {ler = {
       }
       
       // Generate token
-      const token = fastify.jwt.sign({ 
+      const token = request.jwt.sign({ 
         id: user.id,
         email: user.email,
         username: user.username

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Registro - Finandoc</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="left-section">
+      <img src="logo.png" alt="Finandoc Logo" class="logo" />
+      <h1>FINANDOC</h1>
+      <p class="slogan">Organiza tus finanzas</p>
+    </div>
+    <div class="right-section">
+      <div class="support-box">
+        <p><strong>Soporte</strong><br>ticket@finandoc.cl</p>
+      </div>
+      <h2>Registro</h2>
+      <form id="registerForm">
+        <div class="form-group">
+          <input type="text" id="nombre" placeholder="Nombre" required />
+          <input type="text" id="apellido" placeholder="Apellido" required />
+        </div>
+        <input type="email" id="email" placeholder="Ingresa Correo Electrónico" required />
+        <input type="password" id="password" placeholder="Ingresa Contraseña" required />
+        <p class="password-tip">Utilice al menos una letra, un número y siete caracteres</p>
+        <button type="submit" class="btn">Registrar</button>
+        <a href="login.html" class="btn secondary">Ya tengo cuenta</a>
+      </form>
+      <p class="login-footer">
+        <a href="index.html">Volver al inicio</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const nombre = document.getElementById('nombre').value;
+      const apellido = document.getElementById('apellido').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      if (password.length < 7 || !/\d/.test(password) || !/[a-zA-Z]/.test(password)) {
+        alert("La contraseña no cumple los requisitos.");
+        return;
+      }
+
+      try {
+        console.log('Enviando solicitud de registro a /api/auth/register');
+        
+        // Validar datos antes de enviar
+        if (!nombre || !apellido || !email || !password) {
+          alert('Todos los campos son obligatorios');
+          return;
+        }
+        
+        const userData = {
+          username: `${nombre} ${apellido}`,
+          email,
+          password
+        };
+        
+        console.log('Datos a enviar:', JSON.stringify(userData));
+        
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(userData)
+        });
+
+        console.log('Respuesta HTTP:', response.status, response.statusText);
+        
+        let data;
+        try {
+          const responseText = await response.text();
+          console.log('Texto de respuesta:', responseText);
+          
+          // Intentar parsear como JSON solo si hay contenido
+          if (responseText) {
+            try {
+              data = JSON.parse(responseText);
+            } catch (parseError) {
+              console.error('Error al parsear JSON:', parseError);
+              data = { message: 'Error al procesar la respuesta del servidor' };
+            }
+          } else {
+            data = { message: 'No se recibió respuesta del servidor' };
+          }
+        } catch (e) {
+          console.error('Error al obtener texto de respuesta:', e);
+          data = { message: 'Error al leer la respuesta del servidor' };
+        }
+        
+        if (response.ok) {
+          alert('Registro exitoso. Por favor inicie sesión.');
+          window.location.href = '/login.html';
+        } else {
+          alert(`Error: ${data?.message || 'Error desconocido al intentar registrarse'}`);
+        }
+      } catch (error) {
+        console.error('Error durante el registro:', error);
+        alert(`Error de conexión: ${error.message || 'No se pudo conectar con el servidor'}`);
+      }
+    });
+  </script>
+</body>
+</html>

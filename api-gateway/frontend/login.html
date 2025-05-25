@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Iniciar Sesión - Finandoc</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="left-section">
+      <img src="logo.png" alt="Finandoc Logo" class="logo" />
+      <h1>FINANDOC</h1>
+      <p class="slogan">Organiza tus finanzas</p>
+    </div>
+    <div class="right-section">
+      <div class="support-box">
+        <p><strong>Soporte</strong><br>ticket@finandoc.cl</p>
+      </div>
+      <h2>Iniciar Sesión</h2>
+      <form id="loginForm">
+        <input type="email" id="email" placeholder="Correo Electrónico" required />
+        <input type="password" id="password" placeholder="Contraseña" required />
+        <button type="submit" class="btn">Iniciar Sesión</button>
+        <a href="register.html" class="btn secondary">Crear Cuenta</a>
+      </form>
+      <p class="login-footer">
+        <a href="index.html">Volver al inicio</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      try {
+        console.log('Enviando solicitud de login a /api/auth/login');
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email,
+            password
+          })
+        });
+        
+        console.log('Respuesta HTTP:', response.status, response.statusText);
+        
+        let data;
+        try {
+          data = await response.json();
+          console.log('Datos de respuesta:', data);
+        } catch (e) {
+          console.error('Error al procesar la respuesta JSON:', e);
+          console.log('Texto de la respuesta:', await response.text());
+          data = { message: 'Error al procesar la respuesta del servidor' };
+        }
+        
+        if (response.ok) {
+          // Store token in localStorage
+          if (data && data.token) {
+            localStorage.setItem('token', data.token);
+            console.log('Token guardado en localStorage');
+            window.location.href = '/dashboard.html';
+          } else {
+            alert('Error: No se recibió un token válido');
+          }
+        } else {
+          alert(`Error: ${data.message || 'Error desconocido'}`);
+        }
+      } catch (error) {
+        console.error('Error durante el inicio de sesión:', error);
+        alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
+      }
+    });
+  </script>
+</body>
+</html>

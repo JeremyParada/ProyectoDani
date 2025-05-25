@@ -6,8 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy source code
-COPY . .
+# Copy source code and frontend files
+COPY src/ ./src/
+COPY frontend/ ./frontend/
 
 # Expose the service port
 EXPOSE 3000

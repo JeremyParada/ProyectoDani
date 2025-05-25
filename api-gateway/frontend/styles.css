@@ -1,0 +1,121 @@
+/* styles.css */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  height: 100vh;
+}
+
+.container {
+  display: flex;
+  width: 100%;
+}
+
+.left-section {
+  width: 50%;
+  background: linear-gradient(to right, orange, lightblue);
+  color: white;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.logo {
+  width: 150px;
+  margin-bottom: 20px;
+}
+
+.slogan {
+  font-style: italic;
+  font-size: 18px;
+}
+
+.right-section {
+  width: 50%;
+  background-color: #f4f4f4;
+  padding: 40px;
+  position: relative;
+}
+
+.support-box {
+  position: absolute;
+  top: 10px;
+  left: -220px;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+input {
+  padding: 10px;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  font-size: 16px;
+  flex: 1;
+}
+
+.password-tip {
+  font-size: 12px;
+  color: #666;
+  margin: 5px 0 15px;
+}
+
+.btn {
+  padding: 12px;
+  background-color: #007BFF;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.btn.secondary {
+  background-color: #6c757d;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+/* Estilos para los links de navegación */
+.login-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.login-footer a {
+  color: #007BFF;
+  text-decoration: none;
+}
+
+.login-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Convertir los botones a links cuando sea necesario */
+a.btn {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
