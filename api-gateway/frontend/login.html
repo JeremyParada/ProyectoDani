@@ -30,12 +30,20 @@
     </div>
   </div>
 
+  <div id="message-container" class="message-container hidden">
+    <span id="message-text"></span>
+    <button class="close-message">&times;</button>
+  </div>
+
   <script>
     document.getElementById('loginForm').addEventListener('submit', async function (e) {
       e.preventDefault();
       
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
+      
+      // Clear any existing messages
+      hideMessage();
       
       try {
         console.log('Enviando solicitud de login a /api/auth/login');
@@ -67,18 +75,57 @@
           if (data && data.token) {
             localStorage.setItem('token', data.token);
             console.log('Token guardado en localStorage');
-            window.location.href = '/dashboard.html';
+            showMessage('Inicio de sesión exitoso. Redirigiendo al dashboard...', "success");
+            setTimeout(() => {
+              window.location.href = '/dashboard.html';
+            }, 1500);
           } else {
-            alert('Error: No se recibió un token válido');
+            showMessage('Error: No se recibió un token válido', "error");
           }
         } else {
-          alert(`Error: ${data.message || 'Error desconocido'}`);
+          // Traducir mensajes de error conocidos
+          let errorMessage = data.message || 'Error desconocido';
+          if (errorMessage === 'Invalid credentials') {
+            errorMessage = 'Credenciales inválidas';
+          } else if (errorMessage === 'User already exists') {
+            errorMessage = 'El usuario ya existe';
+          } else if (errorMessage === 'Internal server error') {
+            errorMessage = 'Error interno del servidor';
+          } else if (errorMessage === 'No token provided.') {
+            errorMessage = 'No se proporcionó token de autenticación';
+          } else if (errorMessage === 'Unauthorized') {
+            errorMessage = 'No autorizado';
+          }
+          showMessage(`Error: ${errorMessage}`, "error");
         }
       } catch (error) {
         console.error('Error durante el inicio de sesión:', error);
-        alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
+        showMessage(`Error de conexión: ${error.message || 'Error desconocido'}`, "error");
       }
     });
+
+    // Helper functions for showing/hiding messages
+    function showMessage(text, type = "info") {
+      const container = document.getElementById('message-container');
+      const messageText = document.getElementById('message-text');
+      
+      // Set message text
+      messageText.textContent = text;
+      
+      // Remove all existing classes
+      container.classList.remove('message-success', 'message-error', 'message-info', 'hidden');
+      
+      // Add appropriate class based on message type
+      container.classList.add(`message-${type}`);
+      
+      // Register close button event
+      container.querySelector('.close-message').addEventListener('click', hideMessage);
+    }
+
+    function hideMessage() {
+      const container = document.getElementById('message-container');
+      container.classList.add('hidden');
+    }
   </script>
 </body>
 </html>

@@ -35,6 +35,11 @@
     </div>
   </div>
 
+  <div id="message-container" class="message-container hidden">
+    <span id="message-text"></span>
+    <button class="close-message">&times;</button>
+  </div>
+
   <script>
     document.getElementById('registerForm').addEventListener('submit', async function (e) {
       e.preventDefault();
@@ -44,8 +49,11 @@
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
 
+      // Clear any existing messages
+      hideMessage();
+
       if (password.length < 7 || !/\d/.test(password) || !/[a-zA-Z]/.test(password)) {
-        alert("La contraseña no cumple los requisitos.");
+        showMessage("La contraseña no cumple los requisitos.", "error");
         return;
       }
 
@@ -54,7 +62,7 @@
         
         // Validar datos antes de enviar
         if (!nombre || !apellido || !email || !password) {
-          alert('Todos los campos son obligatorios');
+          showMessage('Todos los campos son obligatorios', "error");
           return;
         }
         
@@ -99,16 +107,50 @@
         }
         
         if (response.ok) {
-          alert('Registro exitoso. Por favor inicie sesión.');
-          window.location.href = '/login.html';
+          showMessage('Registro exitoso. Redirigiendo a la página de inicio de sesión...', "success");
+          setTimeout(() => {
+            window.location.href = '/login.html';
+          }, 2000);
         } else {
-          alert(`Error: ${data?.message || 'Error desconocido al intentar registrarse'}`);
+          // Traducir mensajes de error conocidos
+          let errorMessage = data?.message || 'Error desconocido al intentar registrarse';
+          if (errorMessage === 'User already exists') {
+            errorMessage = 'El usuario ya existe';
+          } else if (errorMessage === 'Internal server error') {
+            errorMessage = 'Error interno del servidor';
+          } else if (errorMessage === 'Username, email and password are required') {
+            errorMessage = 'El nombre de usuario, correo electrónico y contraseña son obligatorios';
+          }
+          showMessage(`Error: ${errorMessage}`, "error");
         }
       } catch (error) {
         console.error('Error durante el registro:', error);
-        alert(`Error de conexión: ${error.message || 'No se pudo conectar con el servidor'}`);
+        showMessage(`Error de conexión: ${error.message || 'No se pudo conectar con el servidor'}`, "error");
       }
     });
+
+    // Helper functions for showing/hiding messages
+    function showMessage(text, type = "info") {
+      const container = document.getElementById('message-container');
+      const messageText = document.getElementById('message-text');
+      
+      // Set message text
+      messageText.textContent = text;
+      
+      // Remove all existing classes
+      container.classList.remove('message-success', 'message-error', 'message-info', 'hidden');
+      
+      // Add appropriate class based on message type
+      container.classList.add(`message-${type}`);
+      
+      // Register close button event
+      container.querySelector('.close-message').addEventListener('click', hideMessage);
+    }
+
+    function hideMessage() {
+      const container = document.getElementById('message-container');
+      container.classList.add('hidden');
+    }
   </script>
 </body>
 </html>
