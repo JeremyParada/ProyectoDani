@@ -22,6 +22,7 @@
     .content-area {
       display: grid;
       grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
       gap: 20px;
     }
     
@@ -39,7 +40,324 @@
       border-radius: 8px;
       margin-top: 20px;
     }
+    
+    .document-list {
+      margin-bottom: 20px;
+    }
+    
+    .document-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .document-item:hover {
+      background-color: #f9f9f9;
+    }
+    
+    .doc-info {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .doc-info span {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .doc-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn-small {
+      padding: 5px 10px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    
+    .btn-small:hover {
+      opacity: 0.9;
+    }
+    
+    .financial-summary {
+      background-color: #f9f9f9;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .summary-row.total {
+      font-weight: bold;
+      border-top: 2px solid #ddd;
+      border-bottom: none;
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    
+    .amount-positive {
+      color: green;
+    }
+    
+    .amount-negative {
+      color: red;
+    }
+    
+    .transaction-list {
+      margin-top: 15px;
+    }
+    
+    .transaction-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .transaction-item:hover {
+      background-color: #f9f9f9;
+    }
+    
+    .trans-info {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .trans-info span {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .trans-amount {
+      font-weight: bold;
+    }
+    
+    .financial-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    #refresh-financial {
+      background-color: #28a745;
+    }
+    
+    #refresh-financial:hover {
+      background-color: #218838;
+    }
+    
+    /* Añadir un indicador de carga */
+    .loading {
+      position: relative;
+      pointer-events: none;
+    }
+    
+    .loading:after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.7) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid"><circle cx="50" cy="50" fill="none" stroke="%2328a745" stroke-width="10" r="35" stroke-dasharray="164.93361431346415 56.97787143782138"><animateTransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animateTransform></circle></svg>') center center no-repeat;
+      background-size: 50px;
+      z-index: 1;
+    }
+    
+    .charts-card {
+      grid-column: 1 / span 2;
+    }
+    
+    .charts-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 15px;
+    }
+    
+    .chart-wrapper {
+      flex: 1;
+      min-width: 300px;
+      background-color: #f9f9f9;
+      border-radius: 6px;
+      padding: 15px;
+    }
+    
+    .chart-wrapper h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #555;
+      text-align: center;
+    }
+    
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 250px;
+    }
+    
+    /* Estilos para el popup */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      visibility: hidden;
+      opacity: 0;
+      transition: visibility 0s linear 0.25s, opacity 0.25s;
+    }
+    
+    .modal-overlay.active {
+      visibility: visible;
+      opacity: 1;
+      transition-delay: 0s;
+    }
+    
+    .modal-content {
+      background-color: white;
+      width: 90%;
+      max-width: 600px;
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+    }
+    
+    .modal-close:hover {
+      color: #333;
+    }
+    
+    .form-row {
+      margin-bottom: 15px;
+    }
+    
+    .form-row label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+    
+    .form-row input, .form-row select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    
+    .delete-btn:hover {
+      opacity: 1;
+    }
+    
+    .confirm-dialog {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      width: 400px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .confirm-dialog p {
+      margin-bottom: 20px;
+    }
+    
+    .confirm-actions {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+    
+    .trans-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    /* Estilos para el botón de eliminar documentos */
+    .delete-doc-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    
+    .delete-doc-btn:hover {
+      background-color: #c82333;
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="dashboard-container">
@@ -51,6 +369,7 @@
       <button id="logout" class="btn secondary">Cerrar sesión</button>
     </div>
     
+    <!-- Modificar la sección de contenido -->
     <div class="content-area">
       <div class="card">
         <h2>Documentos Recientes</h2>
@@ -64,8 +383,117 @@
       </div>
       
       <div class="card">
-        <h2>Resumen Financiero</h2>
+        <div class="financial-header">
+          <h2>Resumen Financiero</h2>
+          <button id="refresh-financial" class="btn-small">Actualizar</button>
+        </div>
         <p>No hay transacciones disponibles</p>
+      </div>
+      
+      <!-- Nuevo panel de gráficos -->
+      <div class="card charts-card">
+        <h2>Análisis de Gastos</h2>
+        <div class="charts-container">
+          <div class="chart-wrapper">
+            <h3>Distribución por Categoría</h3>
+            <canvas id="categoryChart"></canvas>
+          </div>
+          <div class="chart-wrapper">
+            <h3>Evolución Mensual</h3>
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Añadir los popups al final del cuerpo del documento, antes del script -->
+  <div class="modal-overlay" id="transaction-modal">
+    <div class="modal-content transaction-modal-expanded">
+      <div class="modal-header">
+        <h3>Confirmar Transacción</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="transaction-container">
+        <div class="transaction-form-container">
+          <form id="transaction-form">
+            <input type="hidden" id="document-id">
+            <div class="form-row">
+              <label for="transaction-amount">Monto ($):</label>
+              <input type="number" id="transaction-amount" required min="0" step="0.01">
+            </div>
+            <div class="form-row">
+              <label for="transaction-date">Fecha:</label>
+              <input type="date" id="transaction-date" required>
+            </div>
+            <div class="form-row">
+              <label for="transaction-vendor">Proveedor/Entidad:</label>
+              <input type="text" id="transaction-vendor">
+            </div>
+            <div class="form-row">
+              <label for="transaction-description">Descripción:</label>
+              <input type="text" id="transaction-description">
+            </div>
+            <div class="form-row">
+              <label for="transaction-category">Categoría:</label>
+              <select id="transaction-category">
+                <option value="">-- Seleccionar categoría --</option>
+                <option value="supermercado">Supermercado</option>
+                <option value="servicios_basicos">Servicios Básicos</option>
+                <option value="telecomunicaciones">Telecomunicaciones</option>
+                <option value="transporte">Transporte</option>
+                <option value="salud">Salud</option>
+                <option value="educacion">Educación</option>
+                <option value="entretenimiento">Entretenimiento</option>
+                <option value="restaurantes">Restaurantes</option>
+                <option value="ropa">Ropa</option>
+                <option value="hogar">Hogar</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="transaction-type">Tipo de Transacción:</label>
+              <select id="transaction-type">
+                <option value="expense">Gasto</option>
+                <option value="income">Ingreso</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn secondary" onclick="closeTransactionModal()">Cancelar</button>
+              <button type="submit" class="btn">Guardar Transacción</button>
+            </div>
+          </form>
+        </div>
+        <div class="document-preview-container">
+          <h4>Vista previa del documento</h4>
+          <div id="document-preview-loader">
+            <div class="loader"></div>
+            <p>Cargando documento...</p>
+          </div>
+          <iframe id="document-preview-frame" style="display: none;"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="modal-overlay" id="confirm-delete-modal">
+    <div class="confirm-dialog">
+      <h3>Confirmar Eliminación</h3>
+      <p>¿Estás seguro de que deseas eliminar esta transacción?</p>
+      <div class="confirm-actions">
+        <button class="btn secondary" onclick="closeConfirmDeleteModal()">Cancelar</button>
+        <button class="btn delete-btn" id="confirm-delete-btn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal para confirmación de eliminación de documento -->
+  <div class="modal-overlay" id="confirm-delete-doc-modal">
+    <div class="confirm-dialog">
+      <h3>Confirmar Eliminación</h3>
+      <p>¿Estás seguro de que deseas eliminar este documento?</p>
+      <div class="confirm-actions">
+        <button class="btn secondary" onclick="closeDeleteDocConfirmModal()">Cancelar</button>
+        <button class="btn delete-btn" id="confirm-delete-doc-btn">Eliminar</button>
       </div>
     </div>
   </div>
@@ -75,9 +503,15 @@
     document.addEventListener('DOMContentLoaded', function() {
       const token = localStorage.getItem('token');
       if (!token) {
-        window.location.href = '/login.html'; // Redirect to login instead of index
+        window.location.href = '/login.html';
         return;
       }
+      
+      // Load user documents
+      loadUserDocuments();
+      
+      // Load financial transactions
+      loadFinancialTransactions();
       
       // Logout handler
       document.getElementById('logout').addEventListener('click', function() {
@@ -86,49 +520,929 @@
       });
       
       // File upload handler
-      document.getElementById('upload-btn').addEventListener('click', async function() {
-        const fileInput = document.getElementById('document-upload');
-        if (!fileInput.files[0]) {
-          alert('Por favor seleccione un archivo');
-          return;
-        }
-        
-        const token = localStorage.getItem('token');
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        
-        try {
-          const response = await fetch('/api/documents/upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
-            body: formData
-          });
-          
-          console.log('Respuesta HTTP:', response.status, response.statusText);
-          
-          let data;
-          try {
-            data = await response.json();
-            console.log('Datos de respuesta:', data);
-          } catch (e) {
-            console.error('Error al procesar la respuesta JSON:', e);
-            data = { message: 'Error al procesar la respuesta del servidor' };
-          }
-          
-          if (response.ok) {
-            alert('Documento subido exitosamente');
-            // Aquí actualizaríamos la UI con el nuevo documento
-          } else {
-            alert(`Error: ${data.message || 'Error desconocido'}`);
-          }
-        } catch (error) {
-          console.error('Error subiendo documento:', error);
-          alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
-        }
+      document.getElementById('upload-btn').addEventListener('click', uploadDocument);
+      
+      // Añadir handler para el botón de actualizar resumen financiero
+      document.getElementById('refresh-financial').addEventListener('click', function() {
+        loadFinancialTransactions(true); // true indica que es una actualización manual
       });
     });
+    
+    // Load and display user documents
+    async function loadUserDocuments() {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/documents/documents', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          displayDocuments(data.documents);
+        } else {
+          console.error('Error fetching documents:', response.status);
+          // Show a user-friendly message
+          document.querySelector('.card:first-child p').textContent = 
+            'No se pudieron cargar los documentos. Por favor, intente nuevamente más tarde.';
+        }
+      } catch (error) {
+        console.error('Error loading documents:', error);
+        document.querySelector('.card:first-child p').textContent = 
+          'Error de conexión al cargar documentos.';
+      }
+    }
+    
+    // Modificar la función uploadDocument para mostrar el popup inmediatamente
+    async function uploadDocument() {
+      const fileInput = document.getElementById('document-upload');
+      if (!fileInput.files[0]) {
+        alert('Por favor seleccione un archivo');
+        return;
+      }
+      
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      
+      // Mostrar el modal con una UI de carga antes de iniciar la subida
+      showTransactionModal(null, null, true); // true indica que estamos en modo carga
+      
+      // Show loading indicator
+      const uploadBtn = document.getElementById('upload-btn');
+      const uploadArea = document.querySelector('.upload-area');
+      uploadArea.classList.add('loading');
+      const originalText = uploadBtn.textContent;
+      uploadBtn.textContent = 'Subiendo...';
+      uploadBtn.disabled = true;
+      
+      try {
+        const response = await fetch('/api/documents/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error('Error parsing response:', e);
+          data = { message: 'Error al procesar la respuesta' };
+        }
+        
+        if (response.ok) {
+          // Recargar documentos en segundo plano
+          loadUserDocuments();
+          
+          // Obtener el ID del documento
+          const documentId = data.document.id;
+          console.log('Documento subido con ID:', documentId);
+          
+          // Actualizar la vista previa del documento en el modal
+          updateDocumentPreview(data.document.objectName);
+          
+          // Intentar obtener los datos OCR
+          try {
+            // Esperar un breve tiempo para que el OCR procese el documento
+            setTimeout(async () => {
+              try {
+                const ocrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+                
+                if (ocrResponse.ok) {
+                  const ocrData = await ocrResponse.json();
+                  console.log('Datos OCR recibidos:', ocrData);
+                  
+                  // Actualizar el formulario con los datos extraídos
+                  if (ocrData.ocrData && ocrData.ocrData.extracted_data) {
+                    let extractedData = ocrData.ocrData.extracted_data;
+                    if (typeof extractedData === 'string') {
+                      try {
+                        extractedData = JSON.parse(extractedData);
+                      } catch (e) {
+                        console.error('Error al parsear los datos extraídos:', e);
+                      }
+                    }
+                    
+                    // Actualizar los campos del formulario
+                    updateTransactionForm(documentId, extractedData);
+                  } else {
+                    // Si no hay datos extraídos, solo actualizar el ID
+                    updateTransactionForm(documentId, null);
+                  }
+                } else {
+                  console.error('Error al obtener datos OCR:', await ocrResponse.text());
+                  updateTransactionForm(documentId, null);
+                }
+              } catch (error) {
+                console.error('Error al obtener datos OCR:', error);
+                updateTransactionForm(documentId, null);
+              }
+            }, 2000);
+          } catch (ocrError) {
+            console.error('Error en el proceso OCR:', ocrError);
+            updateTransactionForm(documentId, null);
+          }
+        } else {
+          closeTransactionModal();
+          alert(`Error: ${data.message || 'Error desconocido'}`);
+        }
+      } catch (error) {
+        closeTransactionModal();
+        console.error('Error uploading document:', error);
+        alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
+      } finally {
+        // Reset button and remove loading state
+        uploadBtn.textContent = originalText;
+        uploadBtn.disabled = false;
+        uploadArea.classList.remove('loading');
+        // Clear file input
+        fileInput.value = '';
+      }
+    }
+    
+    // Reemplazar la función displayDocuments con esta versión mejorada
+    function displayDocuments(documents) {
+      const container = document.querySelector('.card:first-child');
+      
+      // Clear existing content except the header
+      const header = container.querySelector('h2');
+      container.innerHTML = '';
+      container.appendChild(header);
+      
+      if (!documents || documents.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.textContent = 'No hay documentos subidos aún';
+        container.appendChild(emptyMessage);
+      } else {
+        // Create a document list
+        const docList = document.createElement('div');
+        docList.className = 'document-list';
+        
+        documents.forEach(doc => {
+          const docItem = document.createElement('div');
+          docItem.className = 'document-item';
+          
+          // Format file size
+          const sizeInKB = doc.size / 1024;
+          const formattedSize = sizeInKB < 1024 
+            ? `${sizeInKB.toFixed(2)} KB`
+            : `${(sizeInKB / 1024).toFixed(2)} MB`;
+          
+          // Format date
+          const date = new Date(doc.lastModified);
+          const formattedDate = date.toLocaleDateString('es-CL');
+          
+          // Extraer el ID del documento
+          const urlParts = doc.downloadUrl.split('/');
+          const encodedName = urlParts[urlParts.length - 1];
+          const decodedName = decodeURIComponent(encodedName);
+          
+          // Buscar UUIDs en el formato: documento-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX.ext
+          const uuidPattern = /documento-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
+          const uuidMatch = decodedName.match(uuidPattern);
+          
+          let documentId = null;
+          if (uuidMatch && uuidMatch[1]) {
+            documentId = uuidMatch[1];
+          } else if (doc.id) {
+            // Si hay un ID directo en el objeto doc, usarlo
+            documentId = doc.id;
+          }
+          
+          docItem.innerHTML = `
+            <div class="doc-info">
+              <strong>${doc.filename}</strong>
+              <span>${formattedSize} • ${formattedDate}</span>
+            </div>
+            <div class="doc-actions">
+              <button class="btn-small view-doc-btn" data-url="${doc.downloadUrl}">Ver</button>
+              ${documentId ? `<button class="btn-small delete-doc-btn" data-id="${documentId}" onclick="showDeleteDocumentConfirmation('${documentId}'); return false;">Eliminar</button>` : ''}
+            </div>
+          `;
+          
+          docList.appendChild(docItem);
+        });
+        
+        container.appendChild(docList);
+        
+        // Añadir event listeners solo para los botones de ver
+        const viewButtons = container.querySelectorAll('.view-doc-btn');
+        viewButtons.forEach(btn => {
+          btn.addEventListener('click', function() {
+            const url = this.getAttribute('data-url');
+            viewDocument(url);
+          });
+        });
+        
+        // NO añadir listeners a los botones de eliminar aquí, lo manejamos con onclick directamente
+      }
+      
+      // Re-add the upload area
+      const uploadArea = document.createElement('div');
+      uploadArea.className = 'upload-area';
+      uploadArea.innerHTML = `
+        <p>Arrastra archivos aquí o</p>
+        <input type="file" id="document-upload" accept=".pdf,.jpg,.jpeg,.png">
+        <button id="upload-btn" class="btn">Subir documento</button>
+      `;
+      container.appendChild(uploadArea);
+      
+      // Re-attach event listener
+      document.getElementById('upload-btn').addEventListener('click', uploadDocument);
+    }
+    
+    // Nueva función para visualizar documentos
+    async function viewDocument(url) {
+      try {
+        const token = localStorage.getItem('token');
+        console.log(`Intentando acceder a: ${url}`);
+        
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          let errorMsg = `Error ${response.status}: ${response.statusText}`;
+          try {
+            // Intentar obtener más detalles del error
+            const errorData = await response.json();
+            if (errorData && errorData.message) {
+              errorMsg += ` - ${errorData.message}`;
+            }
+          } catch (e) {
+            // Si no podemos parsear la respuesta, solo usamos el mensaje original
+          }
+          throw new Error(errorMsg);
+        }
+        
+        // Obtener el tipo de contenido
+        const contentType = response.headers.get('content-type');
+        console.log(`Tipo de contenido recibido: ${contentType}`);
+        
+        // Crear un blob con el contenido
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Abrir en una nueva ventana o pestaña
+        window.open(blobUrl, '_blank');
+      } catch (error) {
+        console.error('Error al visualizar el documento:', error);
+        alert(`Error al visualizar el documento: ${error.message}`);
+      }
+    }
+    
+    // Cargar transacciones del usuario
+    async function loadFinancialTransactions(isManualRefresh = false) {
+      const token = localStorage.getItem('token');
+      const financialCard = document.querySelector('.card:nth-child(2)');
+      
+      // Si es una actualización manual, mostrar indicador de carga
+      if (isManualRefresh) {
+        financialCard.classList.add('loading');
+      }
+      
+      try {
+        const response = await fetch('/api/financial/transactions', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          displayFinancialSummary(data.transactions);
+          
+          // Llamar a la función para generar los gráficos
+          generateCharts(data.transactions);
+          
+          // Si fue una actualización manual exitosa, mostrar notificación
+          if (isManualRefresh) {
+            // Crear una notificación temporal
+            const notification = document.createElement('div');
+            notification.className = 'update-notification';
+            notification.textContent = 'Resumen financiero actualizado';
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '10px 15px';
+            notification.style.backgroundColor = '#28a745';
+            notification.style.color = 'white';
+            notification.style.borderRadius = '4px';
+            notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+            notification.style.zIndex = '1000';
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 0.3s ease';
+            
+            document.body.appendChild(notification);
+            
+            // Mostrar y luego ocultar la notificación
+            setTimeout(() => {
+              notification.style.opacity = '1';
+              setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                  document.body.removeChild(notification);
+                }, 300);
+              }, 2000);
+            }, 10);
+          }
+        } else {
+          console.error('Error fetching transactions:', response.status);
+          const financialHeader = document.querySelector('.financial-header') || financialCard.querySelector('h2');
+          
+          // Mantener el header con el botón de actualización
+          if (financialHeader) {
+            const errorMsg = document.createElement('p');
+            errorMsg.textContent = 'No se pudieron cargar las transacciones. Por favor, intente nuevamente más tarde.';
+            
+            // Limpiar el contenido existente después del header
+            const headerParent = financialHeader.parentNode;
+            while (headerParent.childNodes.length > 1) {
+              if (headerParent.lastChild !== financialHeader) {
+                headerParent.removeChild(headerParent.lastChild);
+              } else {
+                break;
+              }
+            }
+            
+            headerParent.appendChild(errorMsg);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading transactions:', error);
+        financialCard.querySelector('p').textContent = 
+          'Error de conexión al cargar transacciones.';
+      } finally {
+        // Quitar indicador de carga si fue actualización manual
+        if (isManualRefresh) {
+          financialCard.classList.remove('loading');
+        }
+      }
+    }
+    
+    // Mostrar resumen financiero
+    function displayFinancialSummary(transactions) {
+      const container = document.querySelector('.card:nth-child(2)');
+      
+      // Preservar el header con el botón de actualización o crearlo si no existe
+      let financialHeader = container.querySelector('.financial-header');
+      if (!financialHeader) {
+        // Si no existe el header estructurado, crearlo
+        financialHeader = document.createElement('div');
+        financialHeader.className = 'financial-header';
+        
+        // Mover el h2 existente al header
+        const existingH2 = container.querySelector('h2');
+        if (existingH2) {
+          // Si ya hay un h2, moverlo al header
+          container.removeChild(existingH2);
+          financialHeader.appendChild(existingH2);
+        } else {
+          // Si no hay h2, crear uno nuevo
+          const headerTitle = document.createElement('h2');
+          headerTitle.textContent = 'Resumen Financiero';
+          financialHeader.appendChild(headerTitle);
+        }
+        
+        // Añadir el botón de actualización
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'refresh-financial';
+        refreshBtn.className = 'btn-small';
+        refreshBtn.textContent = 'Actualizar';
+        refreshBtn.addEventListener('click', () => loadFinancialTransactions(true));
+        financialHeader.appendChild(refreshBtn);
+      }
+      
+      // Limpiar el contenedor pero preservar el header
+      container.innerHTML = '';
+      container.appendChild(financialHeader);
+      
+      if (!transactions || transactions.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.textContent = 'No hay transacciones registradas aún';
+        container.appendChild(emptyMessage);
+        return;
+      }
+      
+      // Código existente para mostrar el resumen y las transacciones...
+      // Crear resumen de ingresos/gastos
+      const summary = document.createElement('div');
+      summary.className = 'financial-summary';
+      
+      let totalIncome = 0;
+      let totalExpense = 0;
+      
+      transactions.forEach(transaction => {
+        // Calcular totales
+        if (transaction.transaction_type === 'income') {
+          totalIncome += parseFloat(transaction.amount);
+        } else {
+          totalExpense += parseFloat(transaction.amount);
+        }
+      });
+      
+      // Mostrar resumen
+      summary.innerHTML = `
+        <div class="summary-row">
+          <span>Ingresos:</span>
+          <span class="amount-positive">$${totalIncome.toLocaleString('es-CL')}</span>
+        </div>
+        <div class="summary-row">
+          <span>Gastos:</span>
+          <span class="amount-negative">$${totalExpense.toLocaleString('es-CL')}</span>
+        </div>
+        <div class="summary-row total">
+          <span>Balance:</span>
+          <span class="${totalIncome - totalExpense >= 0 ? 'amount-positive' : 'amount-negative'}">
+            $${(totalIncome - totalExpense).toLocaleString('es-CL')}
+          </span>
+        </div>
+      `;
+      
+      // Añadir el resumen al contenedor
+      container.appendChild(summary);
+      
+      // Crear lista de transacciones
+      const transactionList = document.createElement('div');
+      transactionList.className = 'transaction-list';
+      
+      // Ordenar transacciones por fecha (más recientes primero)
+      const sortedTransactions = [...transactions].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
+      
+      // Mostrar las primeras 5 transacciones
+      sortedTransactions.slice(0, 5).forEach(transaction => {
+        // Crear elemento de transacción
+        const transItem = document.createElement('div');
+        transItem.className = 'transaction-item';
+        
+        // Formatear fecha
+        const date = new Date(transaction.date);
+        const formattedDate = date.toLocaleDateString('es-CL');
+        
+        // Determinar color basado en el tipo
+        const amountColor = transaction.transaction_type === 'income' ? 'green' : 'red';
+        
+        // Formatear monto con signo
+        const formattedAmount = transaction.transaction_type === 'income' 
+          ? `+$${parseFloat(transaction.amount).toLocaleString('es-CL')}`
+          : `-$${parseFloat(transaction.amount).toLocaleString('es-CL')}`;
+        
+        transItem.innerHTML = `
+          <div class="trans-info">
+            <strong>${transaction.description || 'Sin descripción'}</strong>
+            <span>${formattedDate}</span>
+          </div>
+          <div class="trans-actions">
+            <div class="trans-amount" style="color: ${amountColor}">
+              ${formattedAmount}
+            </div>
+            <button class="delete-btn" title="Eliminar transacción" data-id="${transaction.id}">×</button>
+          </div>
+        `;
+        
+        // Añadir evento al botón de eliminar
+        const deleteBtn = transItem.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', function() {
+          const transId = this.getAttribute('data-id');
+          console.log('Eliminar transacción ID:', transId);
+          showDeleteConfirmation(transId);
+        });
+        
+        transactionList.appendChild(transItem);
+      });
+      
+      // Añadir lista de transacciones al contenedor
+      container.appendChild(transactionList);
+      
+      // Si hay más de 5 transacciones, mostrar un enlace para ver todas
+      if (sortedTransactions.length > 5) {
+        const viewMoreLink = document.createElement('a');
+        viewMoreLink.href = '#';
+        viewMoreLink.className = 'view-more-link';
+        viewMoreLink.textContent = 'Ver todas las transacciones';
+        viewMoreLink.style.display = 'block';
+        viewMoreLink.style.textAlign = 'center';
+        viewMoreLink.style.marginTop = '15px';
+        viewMoreLink.style.color = '#007BFF';
+        viewMoreLink.style.textDecoration = 'none';
+        
+        viewMoreLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          alert('Funcionalidad en desarrollo: Ver todas las transacciones');
+        });
+        
+        container.appendChild(viewMoreLink);
+      }
+    }
+    
+    // Variables para los gráficos
+    let categoryChart = null;
+    let monthlyChart = null;
+    
+    // Función para generar los gráficos basados en las transacciones
+    function generateCharts(transactions) {
+      if (!transactions || transactions.length === 0) {
+        // Si no hay transacciones, mostrar mensaje
+        document.querySelector('.charts-card').style.display = 'none';
+        return;
+      }
+      
+      document.querySelector('.charts-card').style.display = 'block';
+      
+      // Preparar datos para el gráfico de categorías
+      const categoryData = {};
+      const colorPalette = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+        '#FF9F40', '#8AC249', '#EA5F89', '#00D8B6', '#BC9CFF'
+      ];
+      
+      transactions.forEach(transaction => {
+        // Solo incluir gastos (excluyendo ingresos)
+        if (transaction.transaction_type === 'expense') {
+          const category = transaction.category_name || 'Sin categoría';
+          const amount = parseFloat(transaction.amount);
+          
+          if (categoryData[category]) {
+            categoryData[category] += amount;
+          } else {
+            categoryData[category] = amount;
+          }
+        }
+      });
+      
+      const categoryLabels = Object.keys(categoryData);
+      const categoryValues = Object.values(categoryData);
+      
+      // Preparar datos para el gráfico mensual
+      const monthlyData = {};
+      
+      transactions.forEach(transaction => {
+        const date = new Date(transaction.date);
+        const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+        const amount = parseFloat(transaction.amount);
+        
+        if (transaction.transaction_type === 'expense') {
+          if (monthlyData[monthYear]) {
+            monthlyData[monthYear].expenses += amount;
+          } else {
+            monthlyData[monthYear] = { expenses: amount, income: 0 };
+          }
+        } else if (transaction.transaction_type === 'income') {
+          if (monthlyData[monthYear]) {
+            monthlyData[monthYear].income += amount;
+          } else {
+            monthlyData[monthYear] = { expenses: 0, income: amount };
+          }
+        }
+      });
+      
+      // Ordenar los meses cronológicamente
+      const sortedMonths = Object.keys(monthlyData).sort((a, b) => {
+        const [monthA, yearA] = a.split('/').map(Number);
+        const [monthB, yearB] = b.split('/').map(Number);
+        
+        if (yearA !== yearB) return yearA - yearB;
+        return monthA - monthB;
+      });
+      
+      const monthLabels = sortedMonths.map(month => {
+        const [m, y] = month.split('/');
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        return `${monthNames[parseInt(m) - 1]} ${y}`;
+      });
+      
+      const expenseValues = sortedMonths.map(month => monthlyData[month].expenses);
+      const incomeValues = sortedMonths.map(month => monthlyData[month].income);
+      
+      // Crear/actualizar gráfico de categorías (torta)
+      const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+      
+      if (categoryChart) {
+        categoryChart.data.labels = categoryLabels;
+        categoryChart.data.datasets[0].data = categoryValues;
+        categoryChart.update();
+      } else {
+        categoryChart = new Chart(categoryCtx, {
+          type: 'pie',
+          data: {
+            labels: categoryLabels,
+            datasets: [{
+              data: categoryValues,
+              backgroundColor: colorPalette.slice(0, categoryLabels.length),
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  boxWidth: 15,
+                  font: {
+                    size: 12
+                  }
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const value = context.raw;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = Math.round((value * 100) / total);
+                    return `$${value.toLocaleString('es-CL')} (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // Crear/actualizar gráfico mensual (barras)
+      const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+      
+      if (monthlyChart) {
+        monthlyChart.data.labels = monthLabels;
+        monthlyChart.data.datasets[0].data = expenseValues;
+        monthlyChart.data.datasets[1].data = incomeValues;
+        monthlyChart.update();
+      } else {
+        monthlyChart = new Chart(monthlyCtx, {
+          type: 'bar',
+          data: {
+            labels: monthLabels,
+            datasets: [
+              {
+                label: 'Gastos',
+                data: expenseValues,
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgb(255, 99, 132)',
+                borderWidth: 1
+              },
+              {
+                label: 'Ingresos',
+                data: incomeValues,
+                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                borderColor: 'rgb(75, 192, 192)',
+                borderWidth: 1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: function(value) {
+                    return '$' + value.toLocaleString('es-CL');
+                  }
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const label = context.dataset.label || '';
+                    const value = context.raw;
+                    return `${label}: $${value.toLocaleString('es-CL')}`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+    
+    // Mejorar la función de vista previa del documento
+    function updateDocumentPreview(objectName) {
+      if (!objectName) {
+        console.error('No se proporcionó nombre de objeto para la vista previa');
+        return;
+      }
+      
+      const previewFrame = document.getElementById('document-preview-frame');
+      const previewLoader = document.getElementById('document-preview-loader');
+      
+      // Mostrar cargando
+      previewLoader.style.display = 'flex';
+      previewFrame.style.display = 'none';
+      
+      // Codificar el nombre del objeto para la URL
+      const encodedObjectName = encodeURIComponent(objectName);
+      const token = localStorage.getItem('token');
+      const previewUrl = `/api/documents/view-encoded/${encodedObjectName}`;
+      
+      console.log('Cargando vista previa desde:', previewUrl);
+      
+      // Implementar un timeout para detectar problemas de carga
+      let loadTimeout = setTimeout(() => {
+        console.warn('Timeout al cargar la vista previa');
+        previewLoader.innerHTML = '<p>Error al cargar la vista previa (timeout)</p>';
+      }, 10000); // 10 segundos de timeout
+      
+      // Configurar el iframe para mostrar el documento
+      previewFrame.onload = function() {
+        clearTimeout(loadTimeout);
+        console.log('Vista previa cargada correctamente');
+        
+        // Ocultar cargando, mostrar iframe
+        previewLoader.style.display = 'none';
+        previewFrame.style.display = 'block';
+        
+        // Asegurar que el iframe se ajuste correctamente
+        adjustPreviewSize();
+      };
+      
+      previewFrame.onerror = function(e) {
+        clearTimeout(loadTimeout);
+        console.error('Error al cargar la vista previa:', e);
+        previewLoader.innerHTML = '<p>Error al cargar la vista previa. Intente nuevamente.</p>';
+      };
+      
+      // Establecer la URL del iframe con token de autenticación
+      // Usar una URL que incluya el token de autenticación para evitar problemas de CORS
+      previewFrame.src = `${previewUrl}?token=${encodeURIComponent(token)}`;
+    }
+    
+    // Añadir una función para ajustar el tamaño de la vista previa
+    function adjustPreviewSize() {
+      const previewFrame = document.getElementById('document-preview-frame');
+      const previewContainer = document.querySelector('.document-preview-container');
+      
+      if (!previewFrame || !previewContainer) return;
+      
+      // Ajustar el iframe para que ocupe todo el espacio disponible
+      previewFrame.style.width = '100%';
+      previewFrame.style.height = (previewContainer.clientHeight - 50) + 'px'; // 50px para el encabezado
+      
+      console.log('Tamaño de vista previa ajustado:', previewFrame.style.width, previewFrame.style.height);
+    }
+    
+    // Mejorar la función para mostrar el modal de transacción
+    function showTransactionModal(documentId, ocrData, isLoading = false) {
+      console.log('Mostrando modal de transacción:', { documentId, hasOcrData: !!ocrData, isLoading });
+      
+      const modal = document.getElementById('transaction-modal');
+      if (!modal) {
+        console.error('No se encontró el elemento con ID "transaction-modal"');
+        return;
+      }
+      
+      // Si estamos en modo carga, mostrar la UI de carga
+      if (isLoading) {
+        document.getElementById('transaction-form').style.opacity = '0.5';
+        document.getElementById('document-preview-loader').style.display = 'flex';
+        document.getElementById('document-preview-frame').style.display = 'none';
+      } else {
+        document.getElementById('transaction-form').style.opacity = '1';
+      }
+      
+      // Mostrar el modal
+      modal.classList.add('active');
+      console.log('Modal de transacción activado');
+      
+      // Agregar eventos
+      const closeBtn = modal.querySelector('.modal-close');
+      const form = document.getElementById('transaction-form');
+      
+      closeBtn.onclick = closeTransactionModal;
+      form.onsubmit = submitTransaction;
+      
+      // Ajustar tamaño después de que el modal sea visible
+      setTimeout(adjustPreviewSize, 100);
+      
+      // Manejar cambios de tamaño de ventana
+      window.addEventListener('resize', adjustPreviewSize);
+    }
+    
+    // Mejorar la función para cerrar el modal
+    function closeTransactionModal() {
+      const modal = document.getElementById('transaction-modal');
+      modal.classList.remove('active');
+      window.currentDocumentId = null;
+      
+      // Limpiar la URL del iframe para evitar conflictos
+      const previewFrame = document.getElementById('document-preview-frame');
+      if (previewFrame) {
+        previewFrame.src = '';
+      }
+      
+      // Eliminar el listener de resize
+      window.removeEventListener('resize', adjustPreviewSize);
+    }
+    
+    // Corregir la función para eliminar documentos
+    function showDeleteDocumentConfirmation(documentId) {
+      console.log('Mostrando confirmación para eliminar documento ID:', documentId);
+      window.currentDocToDelete = documentId;
+      const modal = document.getElementById('confirm-delete-doc-modal');
+      modal.classList.add('active');
+      
+      // Asignar handler directamente al botón sin usar addEventListener
+      document.getElementById('confirm-delete-doc-btn').onclick = function() {
+        deleteDocument();
+      };
+    }
+
+    async function deleteDocument() {
+      if (!window.currentDocToDelete) {
+        console.error('No hay ID de documento para eliminar');
+        return;
+      }
+      
+      const documentId = window.currentDocToDelete;
+      console.log('Eliminando documento con ID/UUID:', documentId);
+      const token = localStorage.getItem('token');
+      
+      try {
+        // Mostrar un indicador de carga mientras se procesa la eliminación
+        const confirmBtn = document.getElementById('confirm-delete-doc-btn');
+        const originalText = confirmBtn.textContent;
+        confirmBtn.textContent = 'Eliminando...';
+        confirmBtn.disabled = true;
+        
+        const response = await fetch(`/api/documents/documents/${documentId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        // Intentar obtener los datos JSON, pero manejar el caso en que no sea JSON
+        let responseData = {};
+        try {
+          responseData = await response.json();
+        } catch (e) {
+          console.log('La respuesta no es JSON:', e);
+        }
+        
+        if (response.ok) {
+          // Cerrar el modal y limpiar la variable global
+          closeDeleteDocConfirmModal();
+          
+          // Mostrar mensaje de éxito
+          alert('Documento eliminado exitosamente');
+          
+          // Recargar la lista de documentos después de un breve retraso
+          // Esto da tiempo al servidor para procesar la eliminación
+          setTimeout(() => {
+            loadUserDocuments();
+          }, 500);
+        } else {
+          // Restaurar botón
+          confirmBtn.textContent = originalText;
+          confirmBtn.disabled = false;
+          
+          // Mostrar mensaje de error detallado
+          let errorMsg = 'Error al eliminar el documento';
+          if (responseData && responseData.message) {
+            errorMsg = responseData.message;
+          }
+          
+          console.error('Error en la respuesta:', response.status, errorMsg);
+          alert(`Error: ${errorMsg}`);
+        }
+      } catch (error) {
+        console.error('Error al eliminar el documento:', error);
+        alert(`Error de conexión: ${error.message}`);
+        
+        // Restaurar el botón en caso de error
+        const confirmBtn = document.getElementById('confirm-delete-doc-btn');
+        confirmBtn.textContent = 'Eliminar';
+        confirmBtn.disabled = false;
+      }
+    }
+
+    function closeDeleteDocConfirmModal() {
+      const modal = document.getElementById('confirm-delete-doc-modal');
+      modal.classList.remove('active');
+      window.currentDocToDelete = null;
+      
+      // Importante: eliminar el manejador de eventos para evitar duplicados
+      document.getElementById('confirm-delete-doc-btn').onclick = null;
+    }
+
   </script>
 </body>
 </html>

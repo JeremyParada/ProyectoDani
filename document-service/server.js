@@ -119,19 +119,28 @@ fastify.post('/upload', {
   }
 });
 
-// Función para procesar OCR y almacenar resultados
+// Modificar la función processOcr para no crear la transacción automáticamente
 async function processOcr(fileBuffer, documentId, userId) {
   try {
-    // Crear un FormData para enviar el archivo al servicio OCR
-    const formData = new FormData();
-    const blob = new Blob([fileBuffer]);
-    formData.append('file', blob, 'document.pdf');
+    // En lugar de usar FormData y Blob que son experimentales en Node.js,
+    // usemos un enfoque más directo con el módulo form-data
+    const FormData = require('form-data');
+    const form = new FormData();
     
-    // Enviar el archivo al servicio OCR
-    const ocrResponse = await axios.post('http://ocr-service:8000/process', formData, {
+    // Añadir el buffer directamente como un archivo
+    form.append('file', fileBuffer, {
+      filename: 'document.pdf',
+      contentType: 'application/pdf', // Importante: especificar el tipo de contenido
+    });
+    
+    console.log(`Enviando documento ${documentId} al servicio OCR (tamaño: ${fileBuffer.length} bytes)`);
+    
+    // Enviar el formulario al servicio OCR
+    const ocrResponse = await axios.post('http://ocr-service:8000/process', form, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        ...form.getHeaders(), // Usar los headers generados por form-data
+      },
+      timeout: 60000 // 60 segundos para evitar peticiones que se queden colgadas
     });
     
     // Obtener los resultados del OCR
@@ -143,32 +152,31 @@ async function processOcr(fileBuffer, documentId, userId) {
        VALUES ($1, $2, $3, $4)`,
       [
         documentId,
-        ocrData.text,
-        JSON.stringify(ocrData.extracted_data),
-        ocrData.extracted_data.confidence || 0.0
+        ocrData.text || '',
+        JSON.stringify(ocrData.extracted_data || {}),
+        ocrData.confidence || 0.0
       ]
     );
     
     // Actualizar el estado del documento
     await pool.query(
-      `UPDATE documents SET ocr_processed = true, status = 'processed' WHERE id = $1`,
+      `UPDATE documents SET ocr_processed = true, status = 'processed_pending_review' WHERE id = $1`,
       [documentId]
     );
     
-    // Si se extrajo un monto, crear una transacción financiera
-    if (ocrData.extracted_data.amount) {
-      await createFinancialTransaction(userId, documentId, ocrData.extracted_data);
-    }
-    
-    console.log(`OCR processing completed for document ${documentId}`);
+    console.log(`Procesamiento OCR completado para el documento ${documentId}. Esperando revisión del usuario.`);
   } catch (error) {
-    console.error(`OCR processing error for document ${documentId}:`, error);
+    console.error(`Error procesando OCR para el documento ${documentId}:`, error);
     
-    // Actualizar el estado del documento en caso de error
-    await pool.query(
-      `UPDATE documents SET status = 'error_ocr' WHERE id = $1`,
-      [documentId]
-    );
+    // Actualizar el estado del documento con información del error
+    try {
+      await pool.query(
+        `UPDATE documents SET status = $1, ocr_processed = false WHERE id = $2`,
+        ['error_ocr', documentId]
+      );
+    } catch (dbError) {
+      console.error(`Error actualizando estado del documento: ${dbError.message}`);
+    }
   }
 }
 
@@ -178,7 +186,7 @@ async function createFinancialTransaction(userId, documentId, extractedData) {
     // Extraer el monto (eliminar el símbolo $ y convertir a número)
     let amount = extractedData.amount;
     if (typeof amount === 'string') {
-      amount = amount.replace(/[$\s,]/g, '');
+      amount = amount.replace(/[$\s,.]/g, '');
     }
     amount = parseFloat(amount);
     
@@ -192,7 +200,7 @@ async function createFinancialTransaction(userId, documentId, extractedData) {
       amount,
       date: transactionDate,
       description: extractedData.description || 'Transacción generada por OCR',
-      category_id: null, // Categoría pendiente
+      category: extractedData.category || null,
       transaction_type: 'expense', // Por defecto asumimos que es un gasto
       source: 'ocr'
     }, {
@@ -304,7 +312,7 @@ fastify.get('/view/:objectName', {
   }
 });
 
-// Mejorar el endpoint de visualización codificada
+// Actualizar el endpoint view-encoded para manejar el token correctamente
 fastify.get('/view-encoded/:encodedObjectName', {
   preValidation: [fastify.authenticate],
   handler: async (request, reply) => {
@@ -333,19 +341,22 @@ fastify.get('/view-encoded/:encodedObjectName', {
         request.log.info(`File metadata: ${JSON.stringify(stat.metaData)}`);
         request.log.info(`File size from metadata: ${stat.size} bytes`);
         
-        // Configurar los encabezados para la respuesta
-        reply.header('Content-Type', stat.metaData['content-type'] || 'application/octet-stream');
+        // Configurar encabezados para optimizar la visualización
+        reply.header('Content-Type', stat.metaData['content-type'] || 'application/pdf');
         reply.header('Content-Length', stat.size);
         reply.header('Content-Disposition', `inline; filename="${objectName.split('/').pop()}"`);
         reply.header('Cache-Control', 'max-age=86400'); // Caché por 24 horas
+        reply.header('Accept-Ranges', 'bytes');
         
-        // Usar un método más directo para descargar y enviar el archivo
+        // Para PDF y otros tipos de documento, permitir visualización en iframe
+        reply.header('X-Frame-Options', 'SAMEORIGIN');
+        
+        // Obtener y enviar el archivo
         const fileStream = await minioClient.minioClient.getObject(
           minioClient.defaultBucket,
           objectName
         );
         
-        // Enviar el stream directamente como respuesta
         return reply.send(fileStream);
       } catch (fileError) {
         request.log.error(`Error al obtener el archivo: ${fileError.message}`);
@@ -360,6 +371,153 @@ fastify.get('/view-encoded/:encodedObjectName', {
     } catch (error) {
       request.log.error(`Error serving file: ${error.message}`);
       return reply.code(500).send({ message: 'Error al obtener el archivo' });
+    }
+  }
+});
+
+// Añadir un nuevo endpoint para obtener los datos OCR de un documento
+fastify.get('/ocr-data/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      
+      // Verificar que el documento pertenece al usuario
+      const documentResult = await pool.query(
+        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (documentResult.rows.length === 0) {
+        return reply.code(404).send({ message: 'Documento no encontrado o no tienes permiso para acceder a él' });
+      }
+      
+      // Obtener los datos OCR
+      const ocrResult = await pool.query(
+        `SELECT * FROM ocr_results WHERE document_id = $1`,
+        [documentId]
+      );
+      
+      if (ocrResult.rows.length === 0) {
+        return reply.code(404).send({ message: 'No se encontraron datos OCR para este documento' });
+      }
+      
+      // Devolver los datos OCR
+      return { 
+        ocrData: ocrResult.rows[0],
+        document: documentResult.rows[0]
+      };
+    } catch (error) {
+      request.log.error(`Error obteniendo datos OCR: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al obtener los datos OCR' });
+    }
+  }
+});
+
+// Añadir un endpoint para crear la transacción financiera manualmente después de la revisión
+fastify.post('/create-transaction/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      const transactionData = request.body;
+      
+      // Verificar que el documento pertenece al usuario
+      const documentResult = await pool.query(
+        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (documentResult.rows.length === 0) {
+        return reply.code(404).send({ message: 'Documento no encontrado o no tienes permiso para acceder a él' });
+      }
+      
+      // Crear la transacción financiera con los datos revisados
+      const response = await createFinancialTransaction(userId, documentId, transactionData);
+      
+      // Actualizar el estado del documento
+      await pool.query(
+        `UPDATE documents SET status = 'transaction_created' WHERE id = $1`,
+        [documentId]
+      );
+      
+      return { 
+        message: 'Transacción financiera creada con éxito',
+        transaction: response
+      };
+    } catch (error) {
+      request.log.error(`Error creando transacción: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al crear la transacción financiera' });
+    }
+  }
+});
+
+// Modificar el endpoint para eliminar documentos
+fastify.delete('/documents/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentIdOrUuid = request.params.documentId;
+      let documentResult;
+      
+      // Verificar si es un ID numérico o un UUID
+      const isNumeric = /^\d+$/.test(documentIdOrUuid);
+      
+      if (isNumeric) {
+        // Buscar por ID numérico
+        documentResult = await pool.query(
+          `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+          [documentIdOrUuid, userId]
+        );
+      } else {
+        // Buscar por UUID dentro del nombre del objeto
+        documentResult = await pool.query(
+          `SELECT * FROM documents WHERE object_name LIKE $1 AND user_id = $2`,
+          [`%${documentIdOrUuid}%`, userId]
+        );
+      }
+      
+      if (documentResult.rows.length === 0) {
+        return reply.code(404).send({ 
+          message: 'Documento no encontrado o no tienes permiso para eliminarlo' 
+        });
+      }
+      
+      const document = documentResult.rows[0];
+      
+      // Eliminar el archivo de MinIO
+      try {
+        await minioClient.minioClient.removeObject(
+          minioClient.defaultBucket,
+          document.object_name
+        );
+      } catch (minioError) {
+        request.log.error(`Error removing object from MinIO: ${minioError.message}`);
+        // Continuamos con la eliminación de la base de datos aunque falle MinIO
+      }
+      
+      // Eliminar los datos OCR si existen
+      await pool.query(
+        `DELETE FROM ocr_results WHERE document_id = $1`,
+        [document.id]
+      );
+      
+      // Eliminar el documento de la base de datos
+      await pool.query(
+        `DELETE FROM documents WHERE id = $1`,
+        [document.id]
+      );
+      
+      return { 
+        message: 'Documento eliminado correctamente',
+        documentId: document.id
+      };
+    } catch (error) {
+      request.log.error(`Error deleting document: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al eliminar el documento' });
     }
   }
 });

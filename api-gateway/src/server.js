@@ -88,6 +88,128 @@ app.get('/health', (req, res) => {
   res.status(200).send({ status: 'UP' });
 });
 
+// Endpoint específico para ver documentos
+app.get('/view-document/:objectName', (req, res) => {
+  const token = req.query.token;
+  if (!token) {
+    return res.status(401).send('No se ha proporcionado token de autenticación');
+  }
+  
+  // Redirigir a la API interna con el token en la cabecera
+  const objectName = req.params.objectName;
+  const targetUrl = `http://document-service:3002/view/${objectName}`;
+  
+  // Crear un proxy específico para esta solicitud
+  const proxy = createProxyMiddleware({ 
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: (path) => `/view/${objectName}`,
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', `Bearer ${token}`);
+    }
+  });
+  
+  // Ejecutar el proxy
+  proxy(req, res);
+});
+
+// Añadir este endpoint específico para la visualización de documentos codificados
+app.get('/api/documents/view-encoded/:encodedObjectName', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).send({ message: 'No token provided.' });
+  }
+  
+  const encodedObjectName = req.params.encodedObjectName;
+  
+  // Crear un proxy específico para esta solicitud
+  const proxy = createProxyMiddleware({ 
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: {
+      [`^/api/documents/view-encoded/${encodedObjectName}`]: `/view-encoded/${encodedObjectName}`
+    },
+    onProxyReq: (proxyReq) => {
+      // Pasar el token de autorización
+      proxyReq.setHeader('Authorization', token);
+    },
+    onError: (err, req, res) => {
+      console.error('Proxy error:', err);
+      res.status(500).send({ 
+        message: 'Error al comunicarse con el servicio de documentos',
+        error: err.message
+      });
+    }
+  });
+  
+  // Ejecutar el proxy
+  proxy(req, res);
+});
+
+// Añadir al archivo server.js del API Gateway
+// Ruta para obtener datos OCR
+app.use('/api/documents/ocr-data/:documentId', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: {
+      [`^/api/documents/ocr-data/:documentId`]: `/ocr-data/${req.params.documentId}`
+    },
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', token);
+    }
+  });
+  
+  proxy(req, res);
+});
+
+// Ruta para crear transacciones desde documentos
+app.use('/api/documents/create-transaction/:documentId', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: {
+      [`^/api/documents/create-transaction/:documentId`]: `/create-transaction/${req.params.documentId}`
+    },
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', token);
+    }
+  });
+  
+  proxy(req, res);
+});
+
+// Ruta para eliminar documentos
+app.delete('/api/documents/documents/:documentId', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  const documentId = req.params.documentId;
+  
+  console.log(`API Gateway: Eliminando documento con ID/UUID: ${documentId}`);
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: (path) => `/documents/${documentId}`,
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', token);
+    },
+    onError: (err, req, res) => {
+      console.error('Proxy error en eliminación de documento:', err);
+      res.status(500).send({ 
+        message: 'Error al comunicarse con el servicio de documentos',
+        error: err.message
+      });
+    }
+  });
+  
+  // Esta línea faltaba - es crítica para que funcione el proxy
+  proxy(req, res);
+});
+
 // Catch-all route to serve the frontend for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));

@@ -52,10 +52,20 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - EXTERNAL_MINIO_HOST=localhost:9000
     ports:
-      - "3002:3002"  # For direct testing
+      - "3002:3002"
+    depends_on:
+      - minio
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - app-network
+    restart: on-failure
 
   financial-service:
     build: ./financial-service
@@ -106,11 +116,20 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_REGION=us-east-1
+      - MINIO_BROWSER=on
+      - MINIO_COMPRESS=off      # Desactivar compresión
+      - MINIO_COMPRESS_EXTENSIONS=       # No comprimir ninguna extensión
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   redis:
     image: redis:7
