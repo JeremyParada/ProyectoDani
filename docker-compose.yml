@@ -34,17 +34,13 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s  # Increase interval
+      timeout: 10s   # Increase timeout
       retries: 10
-      start_period: 60s  # Give it more time to initialize
+      start_period: 90s  # Increase start period significantly
     networks:
       - app-network
     restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 512M
 
   document-service:
     build: ./document-service
