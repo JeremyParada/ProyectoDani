@@ -217,5 +217,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API Gateway running on port ${PORT}`);
-  console.log(`Access the application at http://localhost:${PORT}`);
+  console.log(`Access the application at:`);
+  console.log(`  Local: http://localhost:${PORT}`);
+  console.log(`  Network: http://YOUR_IP_ADDRESS:${PORT}`);
 });

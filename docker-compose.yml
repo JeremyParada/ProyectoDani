@@ -2,24 +2,15 @@ services:
   api-gateway:
     build: ./api-gateway
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Expone el puerto 3000 en todas las interfaces
     environment:
-      - NODE_ENV=development
-      - JWT_SECRET=your_jwt_secret
-      - PORT=3000
-      - HOST=0.0.0.0
+      - NODE_ENV=production
     depends_on:
-      postgres:
-        condition: service_healthy
+      - auth-service
+      - document-service
+      - financial-service
     networks:
       - app-network
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
 
   auth-service:
     build: ./auth-service
