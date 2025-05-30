@@ -356,6 +356,31 @@
     .delete-doc-btn:hover {
       background-color: #c82333;
     }
+    
+    .ocr-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .ocr-status.hidden {
+      display: none;
+    }
+    
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #3498db;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 2s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -408,69 +433,58 @@
   </div>
   
   <!-- Añadir los popups al final del cuerpo del documento, antes del script -->
+  <!-- Modal para crear transacción -->
   <div class="modal-overlay" id="transaction-modal">
-    <div class="modal-content transaction-modal-expanded">
+    <div class="modal-content">
       <div class="modal-header">
         <h3>Confirmar Transacción</h3>
-        <button class="modal-close">&times;</button>
+        <span class="modal-close">&times;</span>
       </div>
-      <div class="transaction-container">
-        <div class="transaction-form-container">
-          <form id="transaction-form">
-            <input type="hidden" id="document-id">
-            <div class="form-row">
-              <label for="transaction-amount">Monto ($):</label>
-              <input type="number" id="transaction-amount" required min="0" step="0.01">
-            </div>
-            <div class="form-row">
-              <label for="transaction-date">Fecha:</label>
-              <input type="date" id="transaction-date" required>
-            </div>
-            <div class="form-row">
-              <label for="transaction-vendor">Proveedor/Entidad:</label>
-              <input type="text" id="transaction-vendor">
-            </div>
-            <div class="form-row">
-              <label for="transaction-description">Descripción:</label>
-              <input type="text" id="transaction-description">
-            </div>
-            <div class="form-row">
-              <label for="transaction-category">Categoría:</label>
-              <select id="transaction-category">
-                <option value="">-- Seleccionar categoría --</option>
-                <option value="supermercado">Supermercado</option>
-                <option value="servicios_basicos">Servicios Básicos</option>
-                <option value="telecomunicaciones">Telecomunicaciones</option>
-                <option value="transporte">Transporte</option>
-                <option value="salud">Salud</option>
-                <option value="educacion">Educación</option>
-                <option value="entretenimiento">Entretenimiento</option>
-                <option value="restaurantes">Restaurantes</option>
-                <option value="ropa">Ropa</option>
-                <option value="hogar">Hogar</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <label for="transaction-type">Tipo de Transacción:</label>
-              <select id="transaction-type">
-                <option value="expense">Gasto</option>
-                <option value="income">Ingreso</option>
-              </select>
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn secondary" onclick="closeTransactionModal()">Cancelar</button>
-              <button type="submit" class="btn">Guardar Transacción</button>
-            </div>
-          </form>
-        </div>
-        <div class="document-preview-container">
-          <h4>Vista previa del documento</h4>
-          <div id="document-preview-loader">
-            <div class="loader"></div>
-            <p>Cargando documento...</p>
+      
+      <!-- Simplificar el contenedor eliminando la vista previa -->
+      <div class="transaction-form-container">
+        <form id="transaction-form">
+          <input type="hidden" id="document-id" name="documentId">
+          
+          <div class="form-group">
+            <label for="transaction-amount">Monto:</label>
+            <input type="number" id="transaction-amount" name="amount" step="0.01" required>
           </div>
-          <iframe id="document-preview-frame" style="display: none;"></iframe>
-        </div>
+          
+          <div class="form-group">
+            <label for="transaction-date">Fecha:</label>
+            <input type="date" id="transaction-date" name="date" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="transaction-vendor">Proveedor/Comercio:</label>
+            <input type="text" id="transaction-vendor" name="vendor">
+          </div>
+          
+          <div class="form-group">
+            <label for="transaction-description">Descripción:</label>
+            <textarea id="transaction-description" name="description" rows="3"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="transaction-type">Tipo:</label>
+            <select id="transaction-type" name="type">
+              <option value="expense">Gasto</option>
+              <option value="income">Ingreso</option>
+            </select>
+          </div>
+          
+          <!-- Agregar un indicador de estado OCR -->
+          <div id="ocr-status" class="ocr-status hidden">
+            <div class="loader"></div>
+            <p>Extrayendo datos del documento...</p>
+          </div>
+          
+          <div class="form-actions">
+            <button type="button" class="btn secondary" onclick="closeTransactionModal()">Cancelar</button>
+            <button type="submit" class="btn">Guardar Transacción</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -556,7 +570,7 @@
       }
     }
     
-    // Modificar la función uploadDocument para mostrar el popup inmediatamente
+    // Simplificar la función uploadDocument para que no abra modales
     async function uploadDocument() {
       const fileInput = document.getElementById('document-upload');
       if (!fileInput.files[0]) {
@@ -567,9 +581,6 @@
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', fileInput.files[0]);
-      
-      // Mostrar el modal con una UI de carga antes de iniciar la subida
-      showTransactionModal(null, null, true); // true indica que estamos en modo carga
       
       // Show loading indicator
       const uploadBtn = document.getElementById('upload-btn');
@@ -597,67 +608,17 @@
         }
         
         if (response.ok) {
-          // Recargar documentos en segundo plano
+          // Mostrar mensaje de éxito
+          alert('Documento subido exitosamente');
+          
+          // Recargar documentos
           loadUserDocuments();
           
-          // Obtener el ID del documento
-          const documentId = data.document.id;
-          console.log('Documento subido con ID:', documentId);
-          
-          // Actualizar la vista previa del documento en el modal
-          updateDocumentPreview(data.document.objectName);
-          
-          // Intentar obtener los datos OCR
-          try {
-            // Esperar un breve tiempo para que el OCR procese el documento
-            setTimeout(async () => {
-              try {
-                const ocrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                });
-                
-                if (ocrResponse.ok) {
-                  const ocrData = await ocrResponse.json();
-                  console.log('Datos OCR recibidos:', ocrData);
-                  
-                  // Actualizar el formulario con los datos extraídos
-                  if (ocrData.ocrData && ocrData.ocrData.extracted_data) {
-                    let extractedData = ocrData.ocrData.extracted_data;
-                    if (typeof extractedData === 'string') {
-                      try {
-                        extractedData = JSON.parse(extractedData);
-                      } catch (e) {
-                        console.error('Error al parsear los datos extraídos:', e);
-                      }
-                    }
-                    
-                    // Actualizar los campos del formulario
-                    updateTransactionForm(documentId, extractedData);
-                  } else {
-                    // Si no hay datos extraídos, solo actualizar el ID
-                    updateTransactionForm(documentId, null);
-                  }
-                } else {
-                  console.error('Error al obtener datos OCR:', await ocrResponse.text());
-                  updateTransactionForm(documentId, null);
-                }
-              } catch (error) {
-                console.error('Error al obtener datos OCR:', error);
-                updateTransactionForm(documentId, null);
-              }
-            }, 2000);
-          } catch (ocrError) {
-            console.error('Error en el proceso OCR:', ocrError);
-            updateTransactionForm(documentId, null);
-          }
+          console.log('Documento subido con ID:', data.document.id);
         } else {
-          closeTransactionModal();
           alert(`Error: ${data.message || 'Error desconocido'}`);
         }
       } catch (error) {
-        closeTransactionModal();
         console.error('Error uploading document:', error);
         alert(`Error de conexión: ${error.message || 'Error desconocido'}`);
       } finally {
@@ -675,16 +636,16 @@
       const container = document.querySelector('.card:first-child');
       
       // Clear existing content except the header
-      const header = container.querySelector('h2');
+      const h2 = container.querySelector('h2');
       container.innerHTML = '';
-      container.appendChild(header);
+      container.appendChild(h2);
       
       if (!documents || documents.length === 0) {
         const emptyMessage = document.createElement('p');
-        emptyMessage.textContent = 'No hay documentos subidos aún';
+        emptyMessage.textContent = 'No hay documentos subidos recientemente';
         container.appendChild(emptyMessage);
       } else {
-        // Create a document list
+        // Create document list
         const docList = document.createElement('div');
         docList.className = 'document-list';
         
@@ -692,40 +653,27 @@
           const docItem = document.createElement('div');
           docItem.className = 'document-item';
           
-          // Format file size
-          const sizeInKB = doc.size / 1024;
-          const formattedSize = sizeInKB < 1024 
-            ? `${sizeInKB.toFixed(2)} KB`
-            : `${(sizeInKB / 1024).toFixed(2)} MB`;
-          
-          // Format date
-          const date = new Date(doc.lastModified);
-          const formattedDate = date.toLocaleDateString('es-CL');
-          
-          // Extraer el ID del documento
-          const urlParts = doc.downloadUrl.split('/');
-          const encodedName = urlParts[urlParts.length - 1];
-          const decodedName = decodeURIComponent(encodedName);
-          
-          // Buscar UUIDs en el formato: documento-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX.ext
-          const uuidPattern = /documento-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
-          const uuidMatch = decodedName.match(uuidPattern);
-          
+          // Determinar el ID del documento (puede ser numérico o parte del nombre del objeto)
           let documentId = null;
-          if (uuidMatch && uuidMatch[1]) {
-            documentId = uuidMatch[1];
-          } else if (doc.id) {
-            // Si hay un ID directo en el objeto doc, usarlo
+          if (doc.id) {
             documentId = doc.id;
+          } else if (doc.objectName) {
+            // Extraer UUID del nombre del objeto si es posible
+            const uuidMatch = doc.objectName.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+            if (uuidMatch) {
+              documentId = uuidMatch[1];
+            }
           }
           
           docItem.innerHTML = `
             <div class="doc-info">
-              <strong>${doc.filename}</strong>
-              <span>${formattedSize} • ${formattedDate}</span>
+              <strong>${doc.originalFilename || doc.filename}</strong>
+              <span>Subido: ${new Date(doc.uploadDate).toLocaleDateString('es-CL')}</span>
+              <span>Tamaño: ${(doc.size / 1024).toFixed(1)} KB</span>
             </div>
             <div class="doc-actions">
               <button class="btn-small view-doc-btn" data-url="${doc.downloadUrl}">Ver</button>
+              <button class="btn-small analyze-doc-btn" data-id="${documentId}" data-object-name="${doc.objectName}">Analizar documento</button>
               ${documentId ? `<button class="btn-small delete-doc-btn" data-id="${documentId}" onclick="showDeleteDocumentConfirmation('${documentId}'); return false;">Eliminar</button>` : ''}
             </div>
           `;
@@ -735,7 +683,7 @@
         
         container.appendChild(docList);
         
-        // Añadir event listeners solo para los botones de ver
+        // Añadir event listeners para los botones de ver
         const viewButtons = container.querySelectorAll('.view-doc-btn');
         viewButtons.forEach(btn => {
           btn.addEventListener('click', function() {
@@ -744,7 +692,15 @@
           });
         });
         
-        // NO añadir listeners a los botones de eliminar aquí, lo manejamos con onclick directamente
+        // Añadir event listeners para los botones de analizar documento
+        const analyzeButtons = container.querySelectorAll('.analyze-doc-btn');
+        analyzeButtons.forEach(btn => {
+          btn.addEventListener('click', function() {
+            const documentId = this.getAttribute('data-id');
+            const objectName = this.getAttribute('data-object-name');
+            analyzeDocument(documentId, objectName);
+          });
+        });
       }
       
       // Re-add the upload area
@@ -1147,32 +1103,32 @@
               borderWidth: 1
             }]
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'right',
-                labels: {
-                  boxWidth: 15,
-                  font: {
-                    size: 12
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'right',
+                  labels: {
+                    boxWidth: 15,
+                    font: {
+                      size: 12
+                    }
                   }
-                }
-              },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    const value = context.raw;
-                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                    const percentage = Math.round((value * 100) / total);
-                    return `$${value.toLocaleString('es-CL')} (${percentage}%)`;
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      const value = context.raw;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = Math.round((value * 100) / total);
+                      return `$${value.toLocaleString('es-CL')} (${percentage}%)`;
+                    }
                   }
                 }
               }
             }
-          }
-        });
+          });
       }
       
       // Crear/actualizar gráfico mensual (barras)
@@ -1309,13 +1265,9 @@
         return;
       }
       
-      // Si estamos en modo carga, mostrar la UI de carga
+      // Si estamos en modo carga, mostrar indicador
       if (isLoading) {
-        document.getElementById('transaction-form').style.opacity = '0.5';
-        document.getElementById('document-preview-loader').style.display = 'flex';
-        document.getElementById('document-preview-frame').style.display = 'none';
-      } else {
-        document.getElementById('transaction-form').style.opacity = '1';
+        showOcrStatus('loading', 'Analizando documento...');
       }
       
       // Mostrar el modal
@@ -1328,28 +1280,122 @@
       
       closeBtn.onclick = closeTransactionModal;
       form.onsubmit = submitTransaction;
-      
-      // Ajustar tamaño después de que el modal sea visible
-      setTimeout(adjustPreviewSize, 100);
-      
-      // Manejar cambios de tamaño de ventana
-      window.addEventListener('resize', adjustPreviewSize);
     }
     
-    // Mejorar la función para cerrar el modal
+    // Nueva función para mostrar el estado del OCR
+    function showOcrStatus(type, message) {
+      const statusDiv = document.getElementById('ocr-status');
+      const loader = statusDiv.querySelector('.loader');
+      const text = statusDiv.querySelector('p');
+      
+      // Actualizar el mensaje
+      text.textContent = message;
+      
+      // Mostrar/ocultar loader según el tipo
+      if (type === 'loading') {
+        loader.style.display = 'block';
+        statusDiv.className = 'ocr-status';
+      } else {
+        loader.style.display = 'none';
+        statusDiv.className = `ocr-status ocr-${type}`;
+      }
+      
+      // Mostrar el estado
+      statusDiv.classList.remove('hidden');
+      
+      // Ocultar automáticamente después de unos segundos (excepto para loading)
+      if (type !== 'loading') {
+        setTimeout(() => {
+          statusDiv.classList.add('hidden');
+        }, 5000);
+      }
+    }
+    
+    // Función para ocultar el estado del OCR
+    function hideOcrStatus() {
+      const statusDiv = document.getElementById('ocr-status');
+      statusDiv.classList.add('hidden');
+    }
+    
+    // Función mejorada para actualizar el formulario sin guardar
+    function updateTransactionForm(documentId, extractedData) {
+      console.log('Actualizando formulario con:', { documentId, extractedData });
+      
+      // Establecer el ID del documento
+      document.getElementById('document-id').value = documentId || '';
+      
+      // Ocultar el indicador de carga
+      hideOcrStatus();
+      
+      if (extractedData && typeof extractedData === 'object') {
+        // Llenar campos con datos extraídos (sin guardar)
+        if (extractedData.amount) {
+          // Limpiar el monto (quitar símbolos de moneda y espacios)
+          let cleanAmount = extractedData.amount.toString().replace(/[$\s,.]/g, '');
+          document.getElementById('transaction-amount').value = cleanAmount;
+        }
+        
+        if (extractedData.date) {
+          // Formatear fecha si es necesario
+          let formattedDate = extractedData.date;
+          if (formattedDate && !formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Si la fecha no está en formato YYYY-MM-DD, intentar convertirla
+            try {
+              const dateObj = new Date(formattedDate);
+              if (!isNaN(dateObj.getTime())) {
+                formattedDate = dateObj.toISOString().split('T')[0];
+              }
+            } catch (e) {
+              console.warn('No se pudo convertir la fecha:', formattedDate);
+              formattedDate = new Date().toISOString().split('T')[0]; // Fecha actual como fallback
+            }
+          }
+          document.getElementById('transaction-date').value = formattedDate || new Date().toISOString().split('T')[0];
+        } else {
+          // Establecer fecha actual si no hay fecha extraída
+          document.getElementById('transaction-date').value = new Date().toISOString().split('T')[0];
+        }
+        
+        if (extractedData.vendor || extractedData.merchant) {
+          document.getElementById('transaction-vendor').value = extractedData.vendor || extractedData.merchant || '';
+        }
+        
+        if (extractedData.description) {
+          document.getElementById('transaction-description').value = extractedData.description;
+        }
+        
+        // Seleccionar tipo de transacción (por defecto gasto)
+        const typeSelect = document.getElementById('transaction-type');
+        if (typeSelect) {
+          typeSelect.value = extractedData.type || 'expense';
+        }
+      } else {
+        // No hay datos extraídos, establecer valores por defecto
+        document.getElementById('transaction-date').value = new Date().toISOString().split('T')[0];
+        
+        // Limpiar otros campos
+        document.getElementById('transaction-amount').value = '';
+        document.getElementById('transaction-vendor').value = '';
+        document.getElementById('transaction-description').value = '';
+        
+        const typeSelect = document.getElementById('transaction-type');
+        if (typeSelect) {
+          typeSelect.value = 'expense';
+        }
+      }
+      
+      console.log('Formulario actualizado correctamente - listo para edición');
+    }
+    
+    // Simplificar la función para cerrar el modal
     function closeTransactionModal() {
       const modal = document.getElementById('transaction-modal');
       modal.classList.remove('active');
       window.currentDocumentId = null;
       
-      // Limpiar la URL del iframe para evitar conflictos
-      const previewFrame = document.getElementById('document-preview-frame');
-      if (previewFrame) {
-        previewFrame.src = '';
-      }
-      
-      // Eliminar el listener de resize
-      window.removeEventListener('resize', adjustPreviewSize);
+      // Limpiar el formulario
+      document.getElementById('transaction-form').reset();
+      hideOcrStatus();
     }
     
     // Corregir la función para eliminar documentos
@@ -1441,6 +1487,65 @@
       
       // Importante: eliminar el manejador de eventos para evitar duplicados
       document.getElementById('confirm-delete-doc-btn').onclick = null;
+    }
+
+    // Nueva función para analizar documentos
+    async function analyzeDocument(documentId, objectName) {
+      if (!documentId) {
+        alert('No se puede analizar este documento: ID no disponible');
+        return;
+      }
+      
+      console.log('Analizando documento ID:', documentId);
+      
+      // Mostrar el modal sin vista previa
+      showTransactionModal(documentId, null, true);
+      
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Intentar obtener los datos OCR del documento
+        const ocrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (ocrResponse.ok) {
+          const ocrData = await ocrResponse.json();
+          console.log('Datos OCR recibidos:', ocrData);
+          
+          // Actualizar el formulario con los datos extraídos
+          if (ocrData.ocrData && ocrData.ocrData.extracted_data) {
+            let extractedData = ocrData.ocrData.extracted_data;
+            if (typeof extractedData === 'string') {
+              try {
+                extractedData = JSON.parse(extractedData);
+              } catch (e) {
+                console.error('Error al parsear los datos extraídos:', e);
+              }
+            }
+            
+            // Actualizar los campos del formulario sin guardar
+            updateTransactionForm(documentId, extractedData);
+            showOcrStatus('success', 'Datos extraídos del documento correctamente');
+          } else {
+            // Si no hay datos extraídos, solo actualizar el ID
+            updateTransactionForm(documentId, null);
+            showOcrStatus('info', 'No se pudieron extraer datos automáticamente. Complete la información manualmente.');
+          }
+        } else {
+          console.error('Error al obtener datos OCR:', await ocrResponse.text());
+          
+          // Si no hay datos OCR disponibles, mostrar el formulario vacío
+          updateTransactionForm(documentId, null);
+          showOcrStatus('warning', 'Este documento aún no ha sido procesado. Complete la información manualmente.');
+        }
+      } catch (error) {
+        console.error('Error al analizar documento:', error);
+        updateTransactionForm(documentId, null);
+        showOcrStatus('error', 'Error al analizar el documento. Complete la información manualmente.');
+      }
     }
 
   </script>
