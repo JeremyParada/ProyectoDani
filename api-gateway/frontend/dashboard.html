@@ -579,6 +579,17 @@
       }
       
       const token = localStorage.getItem('token');
+      
+      // Debug logs
+      console.log('Token present:', !!token);
+      console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'null');
+      
+      if (!token) {
+        alert('No hay token de autenticación. Por favor, inicie sesión nuevamente.');
+        window.location.href = '/login.html';
+        return;
+      }
+      
       const formData = new FormData();
       formData.append('file', fileInput.files[0]);
       
@@ -591,6 +602,8 @@
       uploadBtn.disabled = true;
       
       try {
+        console.log('Making request to /api/documents/upload');
+        
         const response = await fetch('/api/documents/upload', {
           method: 'POST',
           headers: {
@@ -599,9 +612,14 @@
           body: formData
         });
         
+        console.log('Response status:', response.status);
+        console.log('Response headers:', [...response.headers.entries()]);
+        
         let data;
         try {
-          data = await response.json();
+          const responseText = await response.text();
+          console.log('Response text:', responseText);
+          data = JSON.parse(responseText);
         } catch (e) {
           console.error('Error parsing response:', e);
           data = { message: 'Error al procesar la respuesta' };
@@ -616,6 +634,7 @@
           
           console.log('Documento subido con ID:', data.document.id);
         } else {
+          console.error('Upload failed:', data);
           alert(`Error: ${data.message || 'Error desconocido'}`);
         }
       } catch (error) {
@@ -631,7 +650,7 @@
       }
     }
     
-    // Reemplazar la función displayDocuments con esta versión mejorada
+    // Corregir la función displayDocuments
     function displayDocuments(documents) {
       const container = document.querySelector('.card:first-child');
       
@@ -653,22 +672,19 @@
           const docItem = document.createElement('div');
           docItem.className = 'document-item';
           
-          // Determinar el ID del documento (puede ser numérico o parte del nombre del objeto)
-          let documentId = null;
-          if (doc.id) {
-            documentId = doc.id;
-          } else if (doc.objectName) {
-            // Extraer UUID del nombre del objeto si es posible
-            const uuidMatch = doc.objectName.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-            if (uuidMatch) {
-              documentId = uuidMatch[1];
-            }
-          }
+          // CORRECCIÓN: Usar doc.id directamente, que debería venir del backend
+          const documentId = doc.id;
+          
+          console.log('Documento procesado:', {
+            id: doc.id,
+            filename: doc.filename || doc.originalFilename,
+            objectName: doc.objectName
+          });
           
           docItem.innerHTML = `
             <div class="doc-info">
               <strong>${doc.originalFilename || doc.filename}</strong>
-              <span>Subido: ${new Date(doc.uploadDate).toLocaleDateString('es-CL')}</span>
+              <span>Subido: ${new Date(doc.uploadDate || doc.created_at).toLocaleDateString('es-CL')}</span>
               <span>Tamaño: ${(doc.size / 1024).toFixed(1)} KB</span>
             </div>
             <div class="doc-actions">
@@ -692,12 +708,19 @@
           });
         });
         
-        // Añadir event listeners para los botones de analizar documento
+        // CORRECCIÓN: Mejorar los event listeners para analizar documento
         const analyzeButtons = container.querySelectorAll('.analyze-doc-btn');
         analyzeButtons.forEach(btn => {
           btn.addEventListener('click', function() {
             const documentId = this.getAttribute('data-id');
             const objectName = this.getAttribute('data-object-name');
+            console.log('Botón analizar presionado:', { documentId, objectName });
+            
+            if (!documentId || documentId === 'null') {
+              alert('Error: ID de documento no válido');
+              return;
+            }
+            
             analyzeDocument(documentId, objectName);
           });
         });
@@ -1259,16 +1282,28 @@
     function showTransactionModal(documentId, ocrData, isLoading = false) {
       console.log('Mostrando modal de transacción:', { documentId, hasOcrData: !!ocrData, isLoading });
       
+      if (!documentId || documentId === 'null') {
+        console.error('DocumentId inválido:', documentId);
+        alert('Error: ID de documento no válido');
+        return;
+      }
+      
       const modal = document.getElementById('transaction-modal');
       if (!modal) {
         console.error('No se encontró el elemento con ID "transaction-modal"');
         return;
       }
       
+      // Guardar el ID del documento globalmente para referencia
+      window.currentDocumentId = documentId;
+      
       // Si estamos en modo carga, mostrar indicador
       if (isLoading) {
         showOcrStatus('loading', 'Analizando documento...');
       }
+      
+      // Establecer el ID del documento en el formulario
+      document.getElementById('document-id').value = documentId;
       
       // Mostrar el modal
       modal.classList.add('active');
@@ -1279,7 +1314,81 @@
       const form = document.getElementById('transaction-form');
       
       closeBtn.onclick = closeTransactionModal;
+      
+      // CORRECCIÓN: Asignar correctamente el manejador del formulario
       form.onsubmit = submitTransaction;
+    }
+    
+    // Función para enviar la transacción
+    async function submitTransaction(event) {
+      event.preventDefault();
+      
+      const formData = new FormData(event.target);
+      const documentId = formData.get('documentId');
+      
+      if (!documentId) {
+        alert('Error: ID de documento no válido');
+        return;
+      }
+      
+      const transactionData = {
+        amount: parseFloat(formData.get('amount')),
+        date: formData.get('date'),
+        vendor: formData.get('vendor'),
+        description: formData.get('description'),
+        transaction_type: formData.get('type') || 'expense'
+      };
+      
+      console.log('Enviando datos de transacción:', transactionData);
+      
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Deshabilitar el botón de envío
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Guardando...';
+        submitBtn.disabled = true;
+        
+        const response = await fetch(`/api/documents/create-transaction/${documentId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(transactionData)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Transacción creada exitosamente:', result);
+          
+          // Cerrar el modal
+          closeTransactionModal();
+          
+          // Mostrar mensaje de éxito
+          alert('Transacción guardada exitosamente');
+          
+          // Recargar las transacciones financieras
+          loadFinancialTransactions();
+          
+        } else {
+          const errorData = await response.json();
+          console.error('Error al crear transacción:', errorData);
+          alert(`Error al guardar la transacción: ${errorData.message || 'Error desconocido'}`);
+        }
+        
+      } catch (error) {
+        console.error('Error de conexión al crear transacción:', error);
+        alert(`Error de conexión: ${error.message}`);
+      } finally {
+        // Restaurar el botón
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.textContent = 'Guardar Transacción';
+          submitBtn.disabled = false;
+        }
+      }
     }
     
     // Nueva función para mostrar el estado del OCR
@@ -1489,65 +1598,83 @@
       document.getElementById('confirm-delete-doc-btn').onclick = null;
     }
 
-    // Nueva función para analizar documentos
+    // Mejorar la función analyzeDocument
     async function analyzeDocument(documentId, objectName) {
-      if (!documentId) {
-        alert('No se puede analizar este documento: ID no disponible');
+      console.log('=== INICIANDO ANÁLISIS DE DOCUMENTO ===');
+      console.log('Document ID:', documentId);
+      console.log('Object Name:', objectName);
+      
+      if (!documentId || documentId === 'null' || documentId === null) {
+        alert('Error: ID de documento no válido');
+        console.error('DocumentId inválido:', documentId);
         return;
       }
       
-      console.log('Analizando documento ID:', documentId);
-      
-      // Mostrar el modal sin vista previa
+      // Mostrar el modal con indicador de carga
       showTransactionModal(documentId, null, true);
+      showOcrStatus('loading', 'Obteniendo datos del documento...');
       
       try {
         const token = localStorage.getItem('token');
+        console.log('Token disponible:', !!token);
         
-        // Intentar obtener los datos OCR del documento
-        const ocrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
+        // Hacer la solicitud directa
+        console.log(`Haciendo solicitud a: /api/documents/ocr-data/${documentId}`);
+        
+        const response = await fetch(`/api/documents/ocr-data/${documentId}`, {
+          method: 'GET',
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
         
-        if (ocrResponse.ok) {
-          const ocrData = await ocrResponse.json();
-          console.log('Datos OCR recibidos:', ocrData);
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('=== DATOS RECIBIDOS ===');
+          console.log('Respuesta completa:', data);
           
-          // Actualizar el formulario con los datos extraídos
-          if (ocrData.ocrData && ocrData.ocrData.extracted_data) {
-            let extractedData = ocrData.ocrData.extracted_data;
-            if (typeof extractedData === 'string') {
-              try {
-                extractedData = JSON.parse(extractedData);
-              } catch (e) {
-                console.error('Error al parsear los datos extraídos:', e);
-              }
-            }
+          // Los datos ya vienen como objeto JSON desde la BD (JSONB)
+          const extractedData = data.ocrData?.extracted_data;
+          
+          if (extractedData && Object.keys(extractedData).length > 0) {
+            console.log('=== DATOS EXTRAÍDOS DISPONIBLES ===');
+            console.log('Amount:', extractedData.amount);
+            console.log('Vendor:', extractedData.vendor);
+            console.log('Date:', extractedData.date);
+            console.log('Description:', extractedData.description);
             
-            // Actualizar los campos del formulario sin guardar
+            // Actualizar el formulario con los datos
             updateTransactionForm(documentId, extractedData);
             showOcrStatus('success', 'Datos extraídos del documento correctamente');
           } else {
-            // Si no hay datos extraídos, solo actualizar el ID
+            console.log('=== NO HAY DATOS EXTRAÍDOS ÚTILES ===');
             updateTransactionForm(documentId, null);
-            showOcrStatus('info', 'No se pudieron extraer datos automáticamente. Complete la información manualmente.');
+            showOcrStatus('warning', 'El documento fue procesado pero no se encontraron datos financieros útiles.');
           }
         } else {
-          console.error('Error al obtener datos OCR:', await ocrResponse.text());
+          const errorText = await response.text();
+          console.error('=== ERROR EN RESPUESTA ===');
+          console.error('Status:', response.status);
+          console.error('Error text:', errorText);
           
-          // Si no hay datos OCR disponibles, mostrar el formulario vacío
           updateTransactionForm(documentId, null);
-          showOcrStatus('warning', 'Este documento aún no ha sido procesado. Complete la información manualmente.');
+          showOcrStatus('error', `Error del servidor: ${response.status}. Complete la información manualmente.`);
         }
+        
       } catch (error) {
-        console.error('Error al analizar documento:', error);
+        console.error('=== ERROR DE CONEXIÓN ===');
+        console.error('Error:', error);
         updateTransactionForm(documentId, null);
-        showOcrStatus('error', 'Error al analizar el documento. Complete la información manualmente.');
+        showOcrStatus('error', 'Error de conexión. Complete la información manualmente.');
       }
     }
 
+    // Añadir este código temporal en dashboard.html para debug
+    console.log('Token:', localStorage.getItem('token'));
   </script>
 </body>
 </html>

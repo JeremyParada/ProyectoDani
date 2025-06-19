@@ -24,7 +24,7 @@ fastify.register(multipart, {
 });
 
 fastify.register(jwt, {
-  secret: process.env.JWT_SECRET || 'supersecretkey'
+  secret: process.env.JWT_SECRET || 'supersecretkey123' // MISMA clave por defecto
 });
 
 // Authentication decorator
@@ -32,16 +32,24 @@ fastify.decorate('authenticate', async (request, reply) => {
   try {
     // Verificar formato del token (Bearer token o solo token)
     const authHeader = request.headers.authorization;
+    console.log('Document service - Auth header:', authHeader); // Debug log
+    
     if (!authHeader) {
+      console.log('Document service - No authorization header');
       throw new Error('No authorization header present');
     }
     
     const token = authHeader.startsWith('Bearer ') ? 
         authHeader.substring(7, authHeader.length) : authHeader;
     
-    await request.jwtVerify({ token });
+    console.log('Document service - Token extracted:', token.substring(0, 20) + '...'); // Debug log
+    
+    // Verificar el token
+    const decoded = await request.jwtVerify({ token });
+    console.log('Document service - Token verified for user:', decoded.id); // Debug log
+    
   } catch (err) {
-    request.log.error(`Authentication error: ${err.message}`);
+    console.error(`Document service - Authentication error:`, err.message);
     reply.code(401).send({ message: 'Unauthorized' });
   }
 });
@@ -223,314 +231,40 @@ fastify.get('/documents', {
       const userId = request.user.id;
       let files = [];
       
-      try {
-        files = await minioClient.listUserFiles(userId);
-      } catch (minioError) {
-        request.log.error(`Error accessing MinIO: ${minioError.message}`);
-        // Devolver una lista vacía en lugar de un error si MinIO no está disponible
-        return { 
-          documents: [],
-          warning: "El servicio de almacenamiento está temporalmente no disponible"
-        };
-      }
-      
-      // Transform the file list to a user-friendly format
-      const documents = files.map((file) => {
-        // Codificar el nombre del objeto para evitar problemas con las barras
-        const encodedObjectName = encodeURIComponent(file.name);
-        const downloadUrl = `/api/documents/view-encoded/${encodedObjectName}`;
-        
-        return {
-          filename: file.name.split('/').pop(),
-          size: file.size,
-          lastModified: file.lastModified,
-          downloadUrl
-        };
-      });
-      
-      return { documents };
-    } catch (error) {
-      request.log.error(`Error listing documents: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al obtener los documentos' });
-    }
-  }
-});
-
-// Get document details endpoint
-fastify.get('/documents/:documentId', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    // This would typically fetch from a database and verify user ownership
-    // For this example, we'll just return a placeholder
-    return {
-      message: 'Endpoint not fully implemented'
-    };
-  }
-});
-
-// Health check
-fastify.get('/health', async () => {
-  return { status: 'UP' };
-});
-
-// Añadir este nuevo endpoint para servir archivos directamente
-fastify.get('/view/:objectName', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    try {
-      const userId = request.user.id;
-      const objectName = request.params.objectName;
-      
-      // Verificar que el archivo pertenece al usuario (seguridad)
-      const userPrefix = `user-${userId}/`;
-      if (!objectName.startsWith(userPrefix)) {
-        return reply.code(403).send({ message: 'No tienes permiso para acceder a este archivo' });
-      }
-      
-      // Obtener los metadatos del objeto para determinar el tipo MIME
-      const stat = await minioClient.minioClient.statObject(
-        minioClient.defaultBucket,
-        objectName
+      // Obtener documentos de la base de datos
+      const documentsResult = await pool.query(
+        `SELECT id, filename, original_filename, mimetype, size, bucket_name, object_name, 
+                status, ocr_processed, created_at, updated_at 
+         FROM documents 
+         WHERE user_id = $1 
+         ORDER BY created_at DESC`,
+        [userId]
       );
       
-      // Obtener el stream del archivo
-      const fileStream = await minioClient.minioClient.getObject(
-        minioClient.defaultBucket,
-        objectName
-      );
-      
-      // Configurar los encabezados para la respuesta
-      reply.header('Content-Type', stat.metaData['content-type'] || 'application/pdf');
-      reply.header('Content-Disposition', `inline; filename="${objectName.split('/').pop()}"`);
-      
-      // Enviar el stream directamente como respuesta
-      return reply.send(fileStream);
-    } catch (error) {
-      request.log.error(`Error serving file: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al obtener el archivo' });
-    }
-  }
-});
-
-// Actualizar el endpoint view-encoded para manejar el token correctamente
-fastify.get('/view-encoded/:encodedObjectName', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    try {
-      const userId = request.user.id;
-      // Decodificar el nombre del objeto
-      const objectName = decodeURIComponent(request.params.encodedObjectName);
-      
-      // Verificar que el archivo pertenece al usuario (seguridad)
-      const userPrefix = `user-${userId}/`;
-      if (!objectName.startsWith(userPrefix)) {
-        return reply.code(403).send({ 
-          message: 'No tienes permiso para acceder a este archivo',
-          requested: objectName,
-          expected: userPrefix
-        });
-      }
-      
-      try {
-        // Obtener los metadatos del objeto
-        const stat = await minioClient.minioClient.statObject(
-          minioClient.defaultBucket,
-          objectName
-        );
-        
-        request.log.info(`File metadata: ${JSON.stringify(stat.metaData)}`);
-        request.log.info(`File size from metadata: ${stat.size} bytes`);
-        
-        // Configurar encabezados para optimizar la visualización
-        reply.header('Content-Type', stat.metaData['content-type'] || 'application/pdf');
-        reply.header('Content-Length', stat.size);
-        reply.header('Content-Disposition', `inline; filename="${objectName.split('/').pop()}"`);
-        reply.header('Cache-Control', 'max-age=86400'); // Caché por 24 horas
-        reply.header('Accept-Ranges', 'bytes');
-        
-        // Para PDF y otros tipos de documento, permitir visualización en iframe
-        reply.header('X-Frame-Options', 'SAMEORIGIN');
-        
-        // Obtener y enviar el archivo
-        const fileStream = await minioClient.minioClient.getObject(
-          minioClient.defaultBucket,
-          objectName
-        );
-        
-        return reply.send(fileStream);
-      } catch (fileError) {
-        request.log.error(`Error al obtener el archivo: ${fileError.message}`);
-        if (fileError.code === 'NoSuchKey') {
-          return reply.code(404).send({ 
-            message: 'El archivo solicitado no existe',
-            objectName
+      for (const doc of documentsResult.rows) {
+        try {
+          // Generar URL de descarga
+          const downloadUrl = `/api/documents/view-encoded/${encodeURIComponent(doc.object_name)}`;
+          
+          files.push({
+            id: doc.id, // IMPORTANTE: Asegurar que el ID se incluya
+            filename: doc.filename,
+            originalFilename: doc.original_filename,
+            mimetype: doc.mimetype,
+            size: doc.size,
+            bucketName: doc.bucket_name,
+            objectName: doc.object_name,
+            status: doc.status,
+            ocrProcessed: doc.ocr_processed,
+            uploadDate: doc.created_at,
+            downloadUrl: downloadUrl
           });
+        } catch (fileError) {
+          request.log.error(`Error processing document ${doc.id}: ${fileError.message}`);
+          // Continuar con otros archivos aunque uno falle
         }
-        throw fileError;
-      }
-    } catch (error) {
-      request.log.error(`Error serving file: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al obtener el archivo' });
-    }
-  }
-});
-
-// Añadir un nuevo endpoint para obtener los datos OCR de un documento
-fastify.get('/ocr-data/:documentId', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    try {
-      const userId = request.user.id;
-      const documentId = request.params.documentId;
-      
-      // Verificar que el documento pertenece al usuario
-      const documentResult = await pool.query(
-        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
-        [documentId, userId]
-      );
-      
-      if (documentResult.rows.length === 0) {
-        return reply.code(404).send({ message: 'Documento no encontrado o no tienes permiso para acceder a él' });
       }
       
-      // Obtener los datos OCR
-      const ocrResult = await pool.query(
-        `SELECT * FROM ocr_results WHERE document_id = $1`,
-        [documentId]
-      );
-      
-      if (ocrResult.rows.length === 0) {
-        return reply.code(404).send({ message: 'No se encontraron datos OCR para este documento' });
-      }
-      
-      // Devolver los datos OCR
-      return { 
-        ocrData: ocrResult.rows[0],
-        document: documentResult.rows[0]
-      };
-    } catch (error) {
-      request.log.error(`Error obteniendo datos OCR: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al obtener los datos OCR' });
-    }
-  }
-});
-
-// Añadir un endpoint para crear la transacción financiera manualmente después de la revisión
-fastify.post('/create-transaction/:documentId', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    try {
-      const userId = request.user.id;
-      const documentId = request.params.documentId;
-      const transactionData = request.body;
-      
-      // Verificar que el documento pertenece al usuario
-      const documentResult = await pool.query(
-        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
-        [documentId, userId]
-      );
-      
-      if (documentResult.rows.length === 0) {
-        return reply.code(404).send({ message: 'Documento no encontrado o no tienes permiso para acceder a él' });
-      }
-      
-      // Crear la transacción financiera con los datos revisados
-      const response = await createFinancialTransaction(userId, documentId, transactionData);
-      
-      // Actualizar el estado del documento
-      await pool.query(
-        `UPDATE documents SET status = 'transaction_created' WHERE id = $1`,
-        [documentId]
-      );
-      
-      return { 
-        message: 'Transacción financiera creada con éxito',
-        transaction: response
-      };
-    } catch (error) {
-      request.log.error(`Error creando transacción: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al crear la transacción financiera' });
-    }
-  }
-});
-
-// Modificar el endpoint para eliminar documentos
-fastify.delete('/documents/:documentId', {
-  preValidation: [fastify.authenticate],
-  handler: async (request, reply) => {
-    try {
-      const userId = request.user.id;
-      const documentIdOrUuid = request.params.documentId;
-      let documentResult;
-      
-      // Verificar si es un ID numérico o un UUID
-      const isNumeric = /^\d+$/.test(documentIdOrUuid);
-      
-      if (isNumeric) {
-        // Buscar por ID numérico
-        documentResult = await pool.query(
-          `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
-          [documentIdOrUuid, userId]
-        );
-      } else {
-        // Buscar por UUID dentro del nombre del objeto
-        documentResult = await pool.query(
-          `SELECT * FROM documents WHERE object_name LIKE $1 AND user_id = $2`,
-          [`%${documentIdOrUuid}%`, userId]
-        );
-      }
-      
-      if (documentResult.rows.length === 0) {
-        return reply.code(404).send({ 
-          message: 'Documento no encontrado o no tienes permiso para eliminarlo' 
-        });
-      }
-      
-      const document = documentResult.rows[0];
-      
-      // Eliminar el archivo de MinIO
-      try {
-        await minioClient.minioClient.removeObject(
-          minioClient.defaultBucket,
-          document.object_name
-        );
-      } catch (minioError) {
-        request.log.error(`Error removing object from MinIO: ${minioError.message}`);
-        // Continuamos con la eliminación de la base de datos aunque falle MinIO
-      }
-      
-      // Eliminar los datos OCR si existen
-      await pool.query(
-        `DELETE FROM ocr_results WHERE document_id = $1`,
-        [document.id]
-      );
-      
-      // Eliminar el documento de la base de datos
-      await pool.query(
-        `DELETE FROM documents WHERE id = $1`,
-        [document.id]
-      );
-      
-      return { 
-        message: 'Documento eliminado correctamente',
-        documentId: document.id
-      };
-    } catch (error) {
-      request.log.error(`Error deleting document: ${error.message}`);
-      return reply.code(500).send({ message: 'Error al eliminar el documento' });
-    }
-  }
-});
-
-// Start server
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3002, host: '0.0.0.0' });
-    fastify.log.info(`Document service listening on ${fastify.server.address().port}`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+      console.log(`Returning ${files.length} documents for user ${userId}`);
+      return { documents: files };
+    } catch

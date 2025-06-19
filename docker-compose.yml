@@ -1,14 +1,18 @@
+version: '3.8'
+
 services:
   api-gateway:
     build: ./api-gateway
     ports:
-      - "3000:3000"  # Expone el puerto 3000 en todas las interfaces
+      - "3000:3000"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=supersecretkey123  # Clave unificada
     depends_on:
       - auth-service
       - document-service
       - financial-service
+      - ocr-service
     networks:
       - app-network
 
@@ -16,7 +20,7 @@ services:
     build: ./auth-service
     environment:
       - NODE_ENV=development
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=supersecretkey123  # MISMA clave
       - DATABASE_URL=postgres://user:password@postgres:5432/auth_db
     ports:
       - "3001:3001"
@@ -25,47 +29,35 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
-      interval: 30s  # Increase interval
-      timeout: 10s   # Increase timeout
-      retries: 10
-      start_period: 90s  # Increase start period significantly
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - app-network
-    restart: always
 
   document-service:
     build: ./document-service
     environment:
-      - NODE_ENV=development
-      - JWT_SECRET=your_jwt_secret
       - DATABASE_URL=postgres://user:password@postgres:5432/document_db
+      - JWT_SECRET=supersecretkey123  # MISMA clave
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
-      - EXTERNAL_MINIO_HOST=localhost:9000
-    ports:
-      - "3002:3002"
+      - EXTERNAL_MINIO_HOST=${SERVER_IP:-localhost}:9001
     depends_on:
+      - postgres
       - minio
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     networks:
       - app-network
-    restart: on-failure
 
   financial-service:
     build: ./financial-service
     environment:
-      - NODE_ENV=development
-      - JWT_SECRET=your_jwt_secret
       - DATABASE_URL=postgres://user:password@postgres:5432/financial_db
-    ports:
-      - "3003:3003"  # For direct testing
+      - JWT_SECRET=supersecretkey123  # MISMA clave
+    depends_on:
+      - postgres
     networks:
       - app-network
 
@@ -73,73 +65,50 @@ services:
     build: ./ocr-service
     environment:
       - PYTHONUNBUFFERED=1
-      - REDIS_URL=redis://redis:6379
-    ports:
-      - "8000:8000"  # For direct testing
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - app-network
+    restart: unless-stopped
 
   postgres:
     image: postgres:15
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-    ports:
-      - "5432:5432"
+      - POSTGRES_MULTIPLE_DATABASES=auth_db,document_db,financial_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts:/docker-entrypoint-initdb.d
+      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 5
     networks:
       - app-network
-    restart: always
 
   minio:
     image: minio/minio
     ports:
-      - "9000:9000"  # API
-      - "9001:9001"  # Console
+      - "9001:9000"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-      - MINIO_REGION=us-east-1
-      - MINIO_BROWSER=on
-      - MINIO_COMPRESS=off      # Desactivar compresión
-      - MINIO_COMPRESS_EXTENSIONS=       # No comprimir ninguna extensión
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     networks:
       - app-network
 
 volumes:
   postgres_data:
   minio_data:
-  redis_data:
 
 networks:
   app-network:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16

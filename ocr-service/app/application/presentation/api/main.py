@@ -12,8 +12,11 @@ import os
 import traceback
 from pdf2image import convert_from_bytes
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
+# Configurar logging más detallado
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="OCR Service")
@@ -28,132 +31,162 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "UP"}
+    """Health check endpoint"""
+    try:
+        # Verificar que tesseract está disponible
+        version = pytesseract.get_tesseract_version()
+        return {
+            "status": "healthy",
+            "tesseract_version": str(version),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.post("/process")
 async def process_document(file: UploadFile = File(...)):
+    """Process document with improved error handling and logging"""
+    start_time = datetime.now()
+    logger.info(f"=== Iniciando procesamiento de documento ===")
+    logger.info(f"Archivo: {file.filename}, Tipo: {file.content_type}")
+    
     try:
+        # Leer contenido del archivo
         contents = await file.read()
+        logger.info(f"Archivo leído: {len(contents)} bytes")
         
-        # Log de información del archivo para diagnóstico
-        logger.info(f"Archivo recibido: nombre={file.filename}, tipo={file.content_type}, tamaño={len(contents)} bytes")
+        if len(contents) == 0:
+            raise HTTPException(status_code=400, detail="El archivo está vacío")
         
-        # Inicializar imagen como None
+        # Inicializar imagen
         image = None
         
-        # Detectar tipo de archivo y procesarlo
+        # Procesar según el tipo de archivo
         if file.content_type == 'application/pdf' or file.filename.lower().endswith('.pdf'):
-            logger.info("Procesando archivo PDF")
-            try:
-                # Convertir PDF a imágenes
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    # Guardar el archivo PDF para asegurar integridad
-                    pdf_path = os.path.join(temp_dir, "document.pdf")
-                    with open(pdf_path, "wb") as f:
-                        f.write(contents)
-                    
-                    # Convertir desde el archivo guardado
-                    pages = convert_from_bytes(contents, 300)
-                    if not pages:
-                        raise HTTPException(status_code=400, detail="No se pudieron extraer páginas del PDF")
-                    
-                    # Usar la primera página para OCR
-                    image = pages[0]
-                    logger.info(f"PDF convertido a imagen exitosamente: tamaño={image.size}")
-            except Exception as e:
-                logger.error(f"Error al convertir PDF: {str(e)}")
-                logger.error(traceback.format_exc())
-                raise HTTPException(status_code=500, detail=f"Error al procesar PDF: {str(e)}")
+            logger.info("Procesando PDF...")
+            image = await process_pdf(contents)
         else:
-            # Procesar imagen directamente
-            logger.info("Procesando archivo de imagen")
-            try:
-                # Guardar temporalmente la imagen para asegurar que se carga correctamente
-                with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                    tmp.write(contents)
-                    tmp_path = tmp.name
-                
-                try:
-                    # Abrir la imagen desde el archivo
-                    image = Image.open(tmp_path)
-                    logger.info(f"Imagen cargada correctamente: formato={image.format}, tamaño={image.size}")
-                finally:
-                    # Limpiar el archivo temporal
-                    if os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
-            except Exception as e:
-                logger.error(f"Error al abrir imagen: {str(e)}")
-                logger.error(traceback.format_exc())
-                raise HTTPException(status_code=400, detail=f"Archivo de imagen inválido: {str(e)}")
+            logger.info("Procesando imagen...")
+            image = await process_image(contents)
         
         if image is None:
-            raise HTTPException(status_code=400, detail="No se pudo procesar el documento: no se pudo cargar la imagen")
+            raise HTTPException(status_code=400, detail="No se pudo procesar el archivo")
         
-        # Convertir a escala de grises para mejor precisión OCR
-        if image.mode != 'L':
-            image = image.convert('L')
-            logger.info("Imagen convertida a escala de grises")
+        # Realizar OCR
+        logger.info("Iniciando OCR...")
+        text = await perform_ocr(image)
         
-        # Intentar diferentes métodos de mejora con alternativas
-        enhanced_image = image
-        text = ""
-        
-        try:
-            # Intentar usar OpenCV para mejorar la imagen
-            try:
-                import cv2
-                img_np = np.array(image)
-                # Aplicar umbral adaptativo
-                img_np = cv2.adaptiveThreshold(
-                    img_np, 
-                    255, 
-                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                    cv2.THRESH_BINARY, 
-                    11, 
-                    2
-                )
-                enhanced_image = Image.fromarray(img_np)
-                logger.info("Imagen mejorada exitosamente con OpenCV")
-            except ImportError:
-                logger.warning("OpenCV (cv2) no disponible, usando mejora básica de imagen")
-                # Alternativa: Mejora básica con PIL
-                import PIL.ImageOps
-                enhanced_image = PIL.ImageOps.autocontrast(image)
-                logger.info("Imagen mejorada con autocontraste de PIL")
-            
-            # Extraer texto usando OCR
-            logger.info("Extrayendo texto de la imagen")
-            text = pytesseract.image_to_string(enhanced_image, lang='spa')
-            
-            if not text.strip():
-                # Si no se encontró texto con la imagen mejorada, intentar con la original
-                logger.warning("No se encontró texto en la imagen mejorada, intentando con la imagen original")
-                text = pytesseract.image_to_string(image, lang='spa')
-        except Exception as ocr_error:
-            logger.error(f"Error durante el procesamiento OCR: {str(ocr_error)}")
-            logger.error(traceback.format_exc())
-            # Devolver un error significativo en lugar de fallar completamente
+        if not text.strip():
+            logger.warning("No se extrajo texto del documento")
             return {
-                "text": "Falló el procesamiento OCR",
-                "extracted_data": {"error": str(ocr_error)},
-                "confidence": 0.0
+                "text": "",
+                "extracted_data": {"error": "No se pudo extraer texto del documento"},
+                "confidence": 0.0,
+                "processing_time": (datetime.now() - start_time).total_seconds()
             }
         
-        # Extraer información relevante
+        # Extraer datos financieros
+        logger.info("Extrayendo datos financieros...")
         extracted_data = extract_financial_data(text)
         
-        logger.info("Procesamiento OCR completado exitosamente")
+        processing_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"Procesamiento completado en {processing_time:.2f} segundos")
+        
         return {
-            "text": text,
+            "text": text[:1000] + "..." if len(text) > 1000 else text,  # Limitar texto para response
             "extracted_data": extracted_data,
-            "confidence": 0.85
+            "confidence": 0.85,
+            "processing_time": processing_time
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error procesando documento: {str(e)}")
+        logger.error(f"Error durante el procesamiento: {str(e)}")
         logger.error(traceback.format_exc())
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Error procesando documento: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+async def process_pdf(contents: bytes) -> Image.Image:
+    """Process PDF file and convert to image"""
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logger.info("Convirtiendo PDF a imagen...")
+            pages = convert_from_bytes(contents, 300, first_page=1, last_page=1)
+            
+            if not pages:
+                raise ValueError("No se pudieron extraer páginas del PDF")
+            
+            image = pages[0]
+            logger.info(f"PDF convertido exitosamente: {image.size}")
+            return image
+            
+    except Exception as e:
+        logger.error(f"Error procesando PDF: {str(e)}")
+        raise
+
+async def process_image(contents: bytes) -> Image.Image:
+    """Process image file"""
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        try:
+            image = Image.open(tmp_path)
+            logger.info(f"Imagen cargada: {image.format}, {image.size}")
+            return image
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+                
+    except Exception as e:
+        logger.error(f"Error procesando imagen: {str(e)}")
+        raise
+
+async def perform_ocr(image: Image.Image) -> str:
+    """Perform OCR on image with multiple attempts"""
+    try:
+        # Convertir a escala de grises
+        if image.mode != 'L':
+            image = image.convert('L')
+        
+        # Intentar OCR con diferentes configuraciones
+        configs = [
+            '--psm 6',  # Uniform block of text
+            '--psm 4',  # Single column of text
+            '--psm 3',  # Fully automatic page segmentation
+        ]
+        
+        best_text = ""
+        best_confidence = 0
+        
+        for config in configs:
+            try:
+                logger.info(f"Intentando OCR con configuración: {config}")
+                text = pytesseract.image_to_string(image, lang='spa', config=config)
+                
+                if text.strip() and len(text.strip()) > len(best_text.strip()):
+                    best_text = text
+                    logger.info(f"Mejor resultado encontrado: {len(text)} caracteres")
+                    break
+                    
+            except Exception as e:
+                logger.warning(f"OCR falló con config {config}: {str(e)}")
+                continue
+        
+        return best_text
+        
+    except Exception as e:
+        logger.error(f"Error en OCR: {str(e)}")
+        raise
 
 def extract_financial_data(text):
     """Extract structured financial data from OCR text with focus on Chilean context"""
@@ -326,3 +359,7 @@ def extract_financial_data(text):
             data["description"] = f"Pago por ${int(data['amount']):,}".replace(',', '.')
     
     return data
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

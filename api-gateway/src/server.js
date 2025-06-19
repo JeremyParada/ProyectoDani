@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const authMiddleware = require('./middleware/auth');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +27,37 @@ app.use(limiter);
 
 // Serve static files from the frontend directory
 app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Authentication middleware
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  console.log('Auth header received:', authHeader);
+  
+  if (!authHeader) {
+    console.log('No authorization header present');
+    return res.status(401).json({ message: 'No token provided.' });
+  }
+  
+  let token;
+  if (authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    token = authHeader;
+  }
+  
+  console.log('Token extracted:', token.substring(0, 20) + '...');
+  
+  try {
+    // IMPORTANTE: Usar la misma clave que en auth-service
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey123');
+    console.log('Token decoded successfully:', decoded.id);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.error('Token verification failed:', error.message);
+    return res.status(401).json({ message: 'Invalid token.' });
+  }
+};
 
 // Routes that don't require authentication
 app.use('/api/auth', createProxyMiddleware({ 
@@ -64,11 +95,29 @@ app.use('/api/auth', createProxyMiddleware({
   secure: false
 }));
 
-// Routes that require authentication
-app.use('/api/documents', authMiddleware, createProxyMiddleware({ 
+// Proxy for document service
+app.use('/api/documents', authMiddleware, createProxyMiddleware({
   target: 'http://document-service:3002',
   changeOrigin: true,
-  pathRewrite: {'^/api/documents' : ''}
+  pathRewrite: {
+    '^/api/documents': '', // remove /api/documents
+  },
+  onProxyReq: (proxyReq, req) => {
+    // Asegurar que el token se pasa correctamente
+    const token = req.headers.authorization;
+    console.log('Proxying request with token:', token ? token.substring(0, 30) + '...' : 'none');
+    
+    if (token) {
+      proxyReq.setHeader('Authorization', token);
+    }
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log('Proxy response status:', proxyRes.statusCode);
+  },
+  onError: (err, req, res) => {
+    console.error('Proxy error:', err);
+    res.status(500).json({ message: 'Error interno del proxy' });
+  }
 }));
 
 app.use('/api/financial', authMiddleware, createProxyMiddleware({ 
@@ -146,19 +195,30 @@ app.get('/api/documents/view-encoded/:encodedObjectName', authMiddleware, (req, 
   proxy(req, res);
 });
 
-// Añadir al archivo server.js del API Gateway
-// Ruta para obtener datos OCR
-app.use('/api/documents/ocr-data/:documentId', authMiddleware, (req, res) => {
+// Proxy for OCR data
+app.get('/api/documents/ocr-data/:documentId', authMiddleware, (req, res) => {
   const token = req.headers.authorization;
+  
+  console.log(`Proxy OCR data request for document: ${req.params.documentId}`);
   
   const proxy = createProxyMiddleware({
     target: 'http://document-service:3002',
     changeOrigin: true,
     pathRewrite: {
-      [`^/api/documents/ocr-data/:documentId`]: `/ocr-data/${req.params.documentId}`
+      [`^/api/documents/ocr-data/${req.params.documentId}`]: `/ocr-data/${req.params.documentId}`
     },
-    onProxyReq: (proxyReq) => {
-      proxyReq.setHeader('Authorization', token);
+    onProxyReq: (proxyReq, req) => {
+      console.log(`Proxying OCR data request with token: ${token ? token.substring(0, 30) + '...' : 'none'}`);
+      if (token) {
+        proxyReq.setHeader('Authorization', token);
+      }
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      console.log(`OCR data proxy response status: ${proxyRes.statusCode}`);
+    },
+    onError: (err, req, res) => {
+      console.error('OCR data proxy error:', err);
+      res.status(500).json({ message: 'Error interno del proxy OCR' });
     }
   });
   
@@ -207,6 +267,24 @@ app.delete('/api/documents/documents/:documentId', authMiddleware, (req, res) =>
   });
   
   // Esta línea faltaba - es crítica para que funcione el proxy
+  proxy(req, res);
+});
+
+// Añadir proxy para el endpoint de procesamiento
+app.post('/api/documents/process/:documentId', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: {
+      [`^/api/documents/process/:documentId`]: `/process/${req.params.documentId}`
+    },
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', token);
+    }
+  });
+  
   proxy(req, res);
 });
 

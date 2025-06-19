@@ -8,9 +8,9 @@ class MinioClient {
     this.internalEndpoint = process.env.MINIO_ENDPOINT || 'minio';
     this.internalPort = parseInt(process.env.MINIO_PORT || '9000');
     
-    // Para URL generation
-    this.externalEndpoint = process.env.EXTERNAL_MINIO_HOST?.split(':')[0] || '127.0.0.1';
-    this.externalPort = parseInt(process.env.EXTERNAL_MINIO_HOST?.split(':')[1] || '9000');
+    // Para URL generation - usar la IP real del servidor
+    this.externalEndpoint = process.env.EXTERNAL_MINIO_HOST?.split(':')[0] || this.getServerIP();
+    this.externalPort = parseInt(process.env.EXTERNAL_MINIO_HOST?.split(':')[1] || '9001');
     
     this.isConnected = false;
     this.connectionAttempts = 0;
@@ -40,6 +40,23 @@ class MinioClient {
     // No inicializar los buckets inmediatamente
     // Intenta inicializar pero no bloquea
     this.initializationPromise = this.initBucketsWithRetry();
+  }
+  
+  // Método para obtener la IP del servidor automáticamente
+  getServerIP() {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    
+    for (const interfaceName in networkInterfaces) {
+      const addresses = networkInterfaces[interfaceName];
+      for (const address of addresses) {
+        // Buscar IPv4 no local
+        if (address.family === 'IPv4' && !address.internal) {
+          return address.address;
+        }
+      }
+    }
+    return '127.0.0.1'; // fallback
   }
   
   // Método para intentar inicializar los buckets con reintentos

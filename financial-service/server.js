@@ -9,7 +9,7 @@ const pool = new Pool({
 
 // Register plugins
 fastify.register(jwt, {
-  secret: process.env.JWT_SECRET || 'supersecretkey'
+  secret: process.env.JWT_SECRET || 'supersecretkey123' // MISMA clave por defecto
 });
 
 // Authentication decorator
