@@ -267,4 +267,174 @@ fastify.get('/documents', {
       
       console.log(`Returning ${files.length} documents for user ${userId}`);
       return { documents: files };
-    } catch
+    } catch (error) {
+      request.log.error(`Error listing documents: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al obtener los documentos' });
+    }
+  }
+});
+
+// Document view endpoint
+fastify.get('/view/:objectName', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const objectName = request.params.objectName;
+      
+      // Verificar que el archivo pertenece al usuario
+      const userPath = `user-${userId}/`;
+      if (!objectName.startsWith(userPath)) {
+        return reply.code(403).send({ message: 'Acceso no autorizado al archivo' });
+      }
+      
+      // Generar URL firmada
+      const url = await minioClient.getFileUrl('documents', objectName);
+      
+      // Redirigir a la URL firmada
+      return reply.redirect(url);
+    } catch (error) {
+      request.log.error(`Error viewing document: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al acceder al documento' });
+    }
+  }
+});
+
+// Document view encoded endpoint
+fastify.get('/view-encoded/:encodedObjectName', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const encodedObjectName = request.params.encodedObjectName;
+      const objectName = decodeURIComponent(encodedObjectName);
+      
+      // Verificar que el archivo pertenece al usuario
+      const userPath = `user-${userId}/`;
+      if (!objectName.startsWith(userPath)) {
+        return reply.code(403).send({ message: 'Acceso no autorizado al archivo' });
+      }
+      
+      // Generar URL firmada
+      const url = await minioClient.getFileUrl('documents', objectName);
+      
+      // Redirigir a la URL firmada
+      return reply.redirect(url);
+    } catch (error) {
+      request.log.error(`Error viewing encoded document: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al acceder al documento' });
+    }
+  }
+});
+
+// Document deletion endpoint
+fastify.delete('/documents/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      
+      // Verificar que el documento existe y pertenece al usuario
+      const docResult = await pool.query(
+        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (docResult.rows.length === 0) {
+        return reply.code(404).send({ 
+          message: 'Documento no encontrado o no tienes permiso para eliminarlo' 
+        });
+      }
+      
+      const document = docResult.rows[0];
+      
+      // Eliminar el archivo de MinIO
+      try {
+        await minioClient.deleteFile(document.bucket_name, document.object_name);
+      } catch (minioError) {
+        request.log.warn(`Warning: Could not delete file from MinIO: ${minioError.message}`);
+      }
+      
+      // Eliminar registros relacionados (OCR results)
+      await pool.query(`DELETE FROM ocr_results WHERE document_id = $1`, [documentId]);
+      
+      // Eliminar el documento de la base de datos
+      await pool.query(`DELETE FROM documents WHERE id = $1`, [documentId]);
+      
+      return { 
+        message: 'Documento eliminado correctamente',
+        documentId: documentId
+      };
+    } catch (error) {
+      request.log.error(`Error deleting document: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al eliminar el documento' });
+    }
+  }
+});
+
+// OCR data endpoint
+fastify.get('/ocr-data/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      
+      // Verificar que el documento pertenece al usuario
+      const docResult = await pool.query(
+        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (docResult.rows.length === 0) {
+        return reply.code(404).send({ 
+          message: 'Documento no encontrado' 
+        });
+      }
+      
+      // Obtener datos de OCR
+      const ocrResult = await pool.query(
+        `SELECT * FROM ocr_results WHERE document_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [documentId]
+      );
+      
+      if (ocrResult.rows.length === 0) {
+        return reply.code(404).send({ 
+          message: 'No se encontraron datos de OCR para este documento' 
+        });
+      }
+      
+      const ocrData = ocrResult.rows[0];
+      
+      return {
+        documentId: documentId,
+        fullText: ocrData.full_text,
+        extractedData: ocrData.extracted_data,
+        confidence: ocrData.confidence,
+        processedAt: ocrData.created_at
+      };
+    } catch (error) {
+      request.log.error(`Error getting OCR data: ${error.message}`);
+      return reply.code(500).send({ message: 'Error al obtener datos de OCR' });
+    }
+  }
+});
+
+// Health check
+fastify.get('/health', async () => {
+  return { status: 'UP' };
+});
+
+// Start server
+const start = async () => {
+  try {
+    await fastify.listen({ port: 3002, host: '0.0.0.0' });
+    fastify.log.info(`Document service listening on ${fastify.server.address().port}`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();

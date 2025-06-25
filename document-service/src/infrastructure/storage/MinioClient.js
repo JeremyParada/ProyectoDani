@@ -8,9 +8,10 @@ class MinioClient {
     this.internalEndpoint = process.env.MINIO_ENDPOINT || 'minio';
     this.internalPort = parseInt(process.env.MINIO_PORT || '9000');
     
-    // Para URL generation - usar la IP real del servidor
-    this.externalEndpoint = process.env.EXTERNAL_MINIO_HOST?.split(':')[0] || this.getServerIP();
-    this.externalPort = parseInt(process.env.EXTERNAL_MINIO_HOST?.split(':')[1] || '9001');
+    // Para URL generation - forzar IPv4 localhost
+    const externalHost = process.env.EXTERNAL_MINIO_HOST || 'localhost:9001';
+    this.externalEndpoint = externalHost.split(':')[0] === 'localhost' ? '127.0.0.1' : externalHost.split(':')[0];
+    this.externalPort = parseInt(externalHost.split(':')[1] || '9001');
     
     this.isConnected = false;
     this.connectionAttempts = 0;
@@ -25,7 +26,7 @@ class MinioClient {
       secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
     });
     
-    // Create a separate client for URL generation
+    // Create a separate client for URL generation - forzar IPv4
     this.urlGenerationClient = new Minio.Client({
       endPoint: this.externalEndpoint,
       port: this.externalPort,
@@ -267,14 +268,36 @@ class MinioClient {
   // Get file download URL
   async getFileUrl(bucket, objectName, expiryInSeconds = 3600) {
     try {
-      // Use the URL generation client with external endpoint
-      return await this.urlGenerationClient.presignedGetObject(
+      console.log(`Generando URL para: bucket=${bucket}, object=${objectName}`);
+      
+      // Create external client with IPv4 localhost endpoint for URL generation
+      const externalClient = new Minio.Client({
+        endPoint: '127.0.0.1', // Force IPv4 instead of 'localhost'
+        port: 9000,
+        useSSL: false,
+        accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+        secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
+      });
+      
+      console.log(`Cliente URL externo: endpoint=127.0.0.1:9000`);
+      
+      // Generate URL with the external client
+      const url = await externalClient.presignedGetObject(
         bucket,
         objectName,
         expiryInSeconds
       );
+      
+      console.log(`URL generada: ${url}`);
+      return url;
     } catch (error) {
       console.error('Error generating presigned URL:', error);
+      console.error('Client config:', {
+        endpoint: this.internalEndpoint,
+        port: this.internalPort,
+        bucket,
+        objectName
+      });
       throw error;
     }
   }

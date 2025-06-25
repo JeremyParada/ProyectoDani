@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -288,6 +289,29 @@ app.post('/api/documents/process/:documentId', authMiddleware, (req, res) => {
   proxy(req, res);
 });
 
+// Ruta para eliminar transacciones
+app.delete('/api/financial/transactions/:transactionId', async (req, res) => {
+  try {
+    const token = req.headers.authorization;
+    
+    const response = await axios.delete(
+      `http://financial-service:3003/transactions/${req.params.transactionId}`,
+      {
+        headers: {
+          'Authorization': token
+        }
+      }
+    );
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error deleting transaction:', error.message);
+    res.status(error.response?.status || 500).json({
+      message: error.response?.data?.message || 'Error al eliminar la transacción'
+    });
+  }
+});
+
 // Catch-all route to serve the frontend for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
@@ -298,4 +322,26 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Access the application at:`);
   console.log(`  Local: http://localhost:${PORT}`);
   console.log(`  Network: http://YOUR_IP_ADDRESS:${PORT}`);
+});
+
+// Añadir proxy para MinIO (opcional)
+app.get('/api/minio/*', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  
+  // Extraer la ruta después de /api/minio/
+  const minioPath = req.path.replace('/api/minio', '');
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://minio:9000',
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/minio': '' // Remover /api/minio del path
+    },
+    onProxyReq: (proxyReq, req) => {
+      // No necesitamos pasar el token JWT a MinIO, pero podemos validar que el usuario esté autenticado
+      console.log(`Proxying MinIO request: ${req.path}`);
+    }
+  });
+  
+  proxy(req, res);
 });

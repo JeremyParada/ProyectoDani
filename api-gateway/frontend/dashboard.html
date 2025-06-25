@@ -1511,11 +1511,16 @@
     function showDeleteDocumentConfirmation(documentId) {
       console.log('Mostrando confirmación para eliminar documento ID:', documentId);
       window.currentDocToDelete = documentId;
+      
       const modal = document.getElementById('confirm-delete-doc-modal');
       modal.classList.add('active');
       
-      // Asignar handler directamente al botón sin usar addEventListener
-      document.getElementById('confirm-delete-doc-btn').onclick = function() {
+      // Limpiar cualquier handler anterior antes de asignar uno nuevo
+      const confirmBtn = document.getElementById('confirm-delete-doc-btn');
+      confirmBtn.onclick = null;
+      
+      // Asignar nuevo handler
+      confirmBtn.onclick = function() {
         deleteDocument();
       };
     }
@@ -1594,87 +1599,111 @@
       modal.classList.remove('active');
       window.currentDocToDelete = null;
       
-      // Importante: eliminar el manejador de eventos para evitar duplicados
-      document.getElementById('confirm-delete-doc-btn').onclick = null;
+      // Restaurar el botón a su estado original
+      const confirmBtn = document.getElementById('confirm-delete-doc-btn');
+      confirmBtn.textContent = 'Eliminar';
+      confirmBtn.disabled = false;
+      confirmBtn.onclick = null; // Limpiar el handler anterior
     }
 
-    // Mejorar la función analyzeDocument
-    async function analyzeDocument(documentId, objectName) {
-      console.log('=== INICIANDO ANÁLISIS DE DOCUMENTO ===');
-      console.log('Document ID:', documentId);
-      console.log('Object Name:', objectName);
+    // Función para mostrar confirmación de eliminación de transacción
+    function showDeleteConfirmation(transactionId) {
+      console.log('Mostrando confirmación para eliminar transacción ID:', transactionId);
+      window.currentTransactionToDelete = transactionId;
       
-      if (!documentId || documentId === 'null' || documentId === null) {
-        alert('Error: ID de documento no válido');
-        console.error('DocumentId inválido:', documentId);
+      const modal = document.getElementById('confirm-delete-modal');
+      modal.classList.add('active');
+      
+      // Limpiar cualquier handler anterior antes de asignar uno nuevo
+      const confirmBtn = document.getElementById('confirm-delete-btn');
+      confirmBtn.onclick = null;
+      
+      // Asignar nuevo handler
+      confirmBtn.onclick = function() {
+        deleteTransaction();
+      };
+    }
+
+    // Función para eliminar transacción
+    async function deleteTransaction() {
+      if (!window.currentTransactionToDelete) {
+        console.error('No hay ID de transacción para eliminar');
         return;
       }
       
-      // Mostrar el modal con indicador de carga
-      showTransactionModal(documentId, null, true);
-      showOcrStatus('loading', 'Obteniendo datos del documento...');
+      const transactionId = window.currentTransactionToDelete;
+      console.log('Eliminando transacción con ID:', transactionId);
+      const token = localStorage.getItem('token');
       
       try {
-        const token = localStorage.getItem('token');
-        console.log('Token disponible:', !!token);
+        // Mostrar indicador de carga
+        const confirmBtn = document.getElementById('confirm-delete-btn');
+        const originalText = confirmBtn.textContent;
+        confirmBtn.textContent = 'Eliminando...';
+        confirmBtn.disabled = true;
         
-        // Hacer la solicitud directa
-        console.log(`Haciendo solicitud a: /api/documents/ocr-data/${documentId}`);
-        
-        const response = await fetch(`/api/documents/ocr-data/${documentId}`, {
-          method: 'GET',
+        const response = await fetch(`/api/financial/transactions/${transactionId}`, {
+          method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${token}`
           }
         });
         
-        console.log('Response status:', response.status);
-        console.log('Response ok:', response.ok);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('=== DATOS RECIBIDOS ===');
-          console.log('Respuesta completa:', data);
-          
-          // Los datos ya vienen como objeto JSON desde la BD (JSONB)
-          const extractedData = data.ocrData?.extracted_data;
-          
-          if (extractedData && Object.keys(extractedData).length > 0) {
-            console.log('=== DATOS EXTRAÍDOS DISPONIBLES ===');
-            console.log('Amount:', extractedData.amount);
-            console.log('Vendor:', extractedData.vendor);
-            console.log('Date:', extractedData.date);
-            console.log('Description:', extractedData.description);
-            
-            // Actualizar el formulario con los datos
-            updateTransactionForm(documentId, extractedData);
-            showOcrStatus('success', 'Datos extraídos del documento correctamente');
-          } else {
-            console.log('=== NO HAY DATOS EXTRAÍDOS ÚTILES ===');
-            updateTransactionForm(documentId, null);
-            showOcrStatus('warning', 'El documento fue procesado pero no se encontraron datos financieros útiles.');
-          }
-        } else {
-          const errorText = await response.text();
-          console.error('=== ERROR EN RESPUESTA ===');
-          console.error('Status:', response.status);
-          console.error('Error text:', errorText);
-          
-          updateTransactionForm(documentId, null);
-          showOcrStatus('error', `Error del servidor: ${response.status}. Complete la información manualmente.`);
+        let responseData = {};
+        try {
+          responseData = await response.json();
+        } catch (e) {
+          console.log('La respuesta no es JSON:', e);
         }
         
+        if (response.ok) {
+          // Cerrar el modal
+          closeConfirmDeleteModal();
+          
+          // Mostrar mensaje de éxito
+          alert('Transacción eliminada exitosamente');
+          
+          // Recargar las transacciones
+          setTimeout(() => {
+            loadFinancialTransactions();
+          }, 500);
+        } else {
+          // Restaurar botón
+          confirmBtn.textContent = originalText;
+          confirmBtn.disabled = false;
+          
+          // Mostrar mensaje de error
+          let errorMsg = 'Error al eliminar la transacción';
+          if (responseData && responseData.message) {
+            errorMsg = responseData.message;
+          }
+          
+          console.error('Error en la respuesta:', response.status, errorMsg);
+          alert(`Error: ${errorMsg}`);
+        }
       } catch (error) {
-        console.error('=== ERROR DE CONEXIÓN ===');
-        console.error('Error:', error);
-        updateTransactionForm(documentId, null);
-        showOcrStatus('error', 'Error de conexión. Complete la información manualmente.');
+        console.error('Error al eliminar la transacción:', error);
+        alert(`Error de conexión: ${error.message}`);
+        
+        // Restaurar el botón
+        const confirmBtn = document.getElementById('confirm-delete-btn');
+        confirmBtn.textContent = 'Eliminar';
+        confirmBtn.disabled = false;
       }
     }
 
-    // Añadir este código temporal en dashboard.html para debug
-    console.log('Token:', localStorage.getItem('token'));
+    // Función para cerrar modal de confirmación
+    function closeConfirmDeleteModal() {
+      const modal = document.getElementById('confirm-delete-modal');
+      modal.classList.remove('active');
+      window.currentTransactionToDelete = null;
+      
+      // Restaurar el botón a su estado original
+      const confirmBtn = document.getElementById('confirm-delete-btn');
+      confirmBtn.textContent = 'Eliminar';
+      confirmBtn.disabled = false;
+      confirmBtn.onclick = null; // Limpiar el handler anterior
+    }
   </script>
 </body>
 </html>

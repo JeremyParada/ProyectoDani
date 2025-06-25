@@ -37,6 +37,8 @@ services:
 
   document-service:
     build: ./document-service
+    ports:
+      - "3002:3002"
     environment:
       - DATABASE_URL=postgres://user:password@postgres:5432/document_db
       - JWT_SECRET=supersecretkey123  # MISMA clave
@@ -44,7 +46,7 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
-      - EXTERNAL_MINIO_HOST=${SERVER_IP:-localhost}:9001
+      - EXTERNAL_MINIO_HOST=minio:9000  # CAMBIAR ESTA LÍNEA
     depends_on:
       - postgres
       - minio
@@ -53,6 +55,8 @@ services:
 
   financial-service:
     build: ./financial-service
+    ports:
+      - "3003:3003"
     environment:
       - DATABASE_URL=postgres://user:password@postgres:5432/financial_db
       - JWT_SECRET=supersecretkey123  # MISMA clave
@@ -77,6 +81,8 @@ services:
 
   postgres:
     image: postgres:15
+    ports:
+    - "5432:5432"
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
@@ -95,7 +101,8 @@ services:
   minio:
     image: minio/minio
     ports:
-      - "9001:9000"
+      - "9001:9001"  # Puerto para consola web
+      - "9000:9000"  # Puerto para API - AGREGAR ESTA LÍNEA
     environment:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
