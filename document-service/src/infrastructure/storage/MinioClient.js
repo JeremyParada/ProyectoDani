@@ -268,21 +268,13 @@ class MinioClient {
   // Get file download URL
   async getFileUrl(bucket, objectName, expiryInSeconds = 3600) {
     try {
+      await this.ensureConnection();
+      
       console.log(`Generando URL para: bucket=${bucket}, object=${objectName}`);
       
-      // Create external client with IPv4 localhost endpoint for URL generation
-      const externalClient = new Minio.Client({
-        endPoint: '127.0.0.1', // Force IPv4 instead of 'localhost'
-        port: 9000,
-        useSSL: false,
-        accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-        secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
-      });
-      
-      console.log(`Cliente URL externo: endpoint=127.0.0.1:9000`);
-      
-      // Generate URL with the external client
-      const url = await externalClient.presignedGetObject(
+      // Use the internal MinIO client instead of creating a new external one
+      // This will work within the Docker network
+      const url = await this.minioClient.presignedGetObject(
         bucket,
         objectName,
         expiryInSeconds
@@ -290,6 +282,7 @@ class MinioClient {
       
       console.log(`URL generada: ${url}`);
       return url;
+      
     } catch (error) {
       console.error('Error generating presigned URL:', error);
       console.error('Client config:', {
@@ -315,6 +308,25 @@ class MinioClient {
       return true;
     } catch (error) {
       console.error('Error deleting file from MinIO:', error);
+      throw error;
+    }
+  }
+  
+  // Add this method to the MinioClient class
+  async getFileStream(bucket, objectName) {
+    try {
+      await this.ensureConnection();
+      
+      console.log(`MinioClient - Getting file stream for: ${bucket}/${objectName}`);
+      
+      // Get the object stream from MinIO
+      const stream = await this.minioClient.getObject(bucket, objectName);
+      
+      console.log(`MinioClient - File stream obtained for: ${bucket}/${objectName}`);
+      return stream;
+      
+    } catch (error) {
+      console.error(`MinioClient - Error getting file stream for ${bucket}/${objectName}:`, error);
       throw error;
     }
   }

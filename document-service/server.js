@@ -309,17 +309,45 @@ fastify.get('/view-encoded/:encodedObjectName', {
       const encodedObjectName = request.params.encodedObjectName;
       const objectName = decodeURIComponent(encodedObjectName);
       
+      console.log(`Document service - Accessing encoded document: ${objectName} for user: ${userId}`);
+      
       // Verificar que el archivo pertenece al usuario
       const userPath = `user-${userId}/`;
       if (!objectName.startsWith(userPath)) {
+        console.log(`Access denied: ${objectName} doesn't start with user-${userId}/`);
         return reply.code(403).send({ message: 'Acceso no autorizado al archivo' });
       }
       
-      // Generar URL firmada
-      const url = await minioClient.getFileUrl('documents', objectName);
-      
-      // Redirigir a la URL firmada
-      return reply.redirect(url);
+      try {
+        // Get the file stream directly instead of generating a URL
+        console.log(`Getting file stream for: documents/${objectName}`);
+        const fileStream = await minioClient.getFileStream('documents', objectName);
+        
+        // Determine content type based on file extension
+        let contentType = 'application/octet-stream';
+        if (objectName.toLowerCase().endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        } else if (objectName.toLowerCase().match(/\.(jpg|jpeg)$/)) {
+          contentType = 'image/jpeg';
+        } else if (objectName.toLowerCase().endsWith('.png')) {
+          contentType = 'image/png';
+        }
+        
+        // Set response headers
+        reply.header('Content-Type', contentType);
+        reply.header('Content-Disposition', 'inline');
+        reply.header('Cache-Control', 'private, max-age=3600');
+        
+        console.log(`Streaming document: ${objectName} with content-type: ${contentType}`);
+        
+        // Stream the file directly
+        return reply.send(fileStream);
+        
+      } catch (minioError) {
+        console.error(`Error accessing file from MinIO: ${minioError.message}`);
+        console.error(`Attempted to access: documents/${objectName}`);
+        return reply.code(404).send({ message: 'Document not found in storage' });
+      }
     } catch (error) {
       request.log.error(`Error viewing encoded document: ${error.message}`);
       return reply.code(500).send({ message: 'Error al acceder al documento' });
@@ -417,6 +445,105 @@ fastify.get('/ocr-data/:documentId', {
     } catch (error) {
       request.log.error(`Error getting OCR data: ${error.message}`);
       return reply.code(500).send({ message: 'Error al obtener datos de OCR' });
+    }
+  }
+});
+
+
+// Route for processing documents (trigger OCR analysis)
+fastify.post('/process/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      
+      console.log(`Processing document ${documentId} for user ${userId}`);
+      
+      // Get document info
+      const documentResult = await pool.query(
+        `SELECT * FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (documentResult.rows.length === 0) {
+        return reply.code(404).send({ message: 'Document not found or access denied' });
+      }
+      
+      const document = documentResult.rows[0];
+      
+      // Get file from MinIO
+      const fileStream = await minioClient.getFileStream('documents', document.object_name);
+      
+      // Convert stream to buffer
+      const chunks = [];
+      for await (const chunk of fileStream) {
+        chunks.push(chunk);
+      }
+      const fileBuffer = Buffer.concat(chunks);
+      
+      // Process with OCR in background
+      processOcr(fileBuffer, documentId, userId).catch(err => {
+        request.log.error(`Error processing OCR: ${err.message}`);
+      });
+      
+      return { 
+        message: 'Document processing started',
+        documentId: documentId
+      };
+      
+    } catch (error) {
+      request.log.error(`Error starting document processing: ${error.message}`);
+      return reply.code(500).send({ message: 'Error starting document processing' });
+    }
+  }
+});
+
+// Route for creating transactions from documents
+fastify.post('/create-transaction/:documentId', {
+  preValidation: [fastify.authenticate],
+  handler: async (request, reply) => {
+    try {
+      const userId = request.user.id;
+      const documentId = request.params.documentId;
+      const transactionData = request.body;
+      
+      console.log(`Creating transaction for document ${documentId}:`, transactionData);
+      
+      // Verify document belongs to user
+      const documentCheck = await pool.query(
+        `SELECT id FROM documents WHERE id = $1 AND user_id = $2`,
+        [documentId, userId]
+      );
+      
+      if (documentCheck.rows.length === 0) {
+        return reply.code(404).send({ message: 'Document not found or access denied' });
+      }
+      
+      // Send to financial service
+      const response = await axios.post('http://financial-service:3003/transactions', {
+        userId: userId,
+        documentId: documentId,
+        amount: transactionData.amount,
+        date: transactionData.date,
+        description: transactionData.description,
+        vendor: transactionData.vendor,
+        transaction_type: transactionData.transaction_type || 'expense',
+        source: 'manual'
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      return response.data;
+      
+    } catch (error) {
+      request.log.error(`Error creating transaction: ${error.message}`);
+      if (error.response) {
+        return reply.code(error.response.status).send(error.response.data);
+      }
+      return reply.code(500).send({ message: 'Error creating transaction' });
     }
   }
 });

@@ -1704,6 +1704,93 @@
       confirmBtn.disabled = false;
       confirmBtn.onclick = null; // Limpiar el handler anterior
     }
+
+    // Función para analizar documento
+    async function analyzeDocument(documentId, objectName) {
+      console.log('Iniciando análisis de documento:', { documentId, objectName });
+      
+      if (!documentId || documentId === 'null') {
+        alert('Error: ID de documento no válido');
+        return;
+      }
+      
+      try {
+        // Mostrar el modal inmediatamente con indicador de carga
+        showTransactionModal(documentId, null, true);
+        
+        const token = localStorage.getItem('token');
+        
+        // Primero verificar si ya hay datos OCR
+        console.log('Obteniendo datos OCR existentes...');
+        const ocrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (ocrResponse.ok) {
+          // Ya hay datos OCR disponibles
+          const ocrData = await ocrResponse.json();
+          console.log('Datos OCR encontrados:', ocrData);
+          
+          // Actualizar el formulario con los datos existentes
+          updateTransactionForm(documentId, ocrData.extractedData);
+          
+        } else if (ocrResponse.status === 404) {
+          // No hay datos OCR, necesitamos procesarlo
+          console.log('No se encontraron datos OCR, iniciando procesamiento...');
+          
+          showOcrStatus('loading', 'Procesando documento...');
+          
+          // Disparar el procesamiento OCR
+          const processResponse = await fetch(`/api/documents/process/${documentId}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (processResponse.ok) {
+            // Procesamiento iniciado, esperar un poco y luego verificar resultados
+            console.log('Procesamiento OCR iniciado, esperando resultados...');
+            
+            // Esperar unos segundos para que el OCR procese
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Verificar si ya tenemos resultados
+            const newOcrResponse = await fetch(`/api/documents/ocr-data/${documentId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (newOcrResponse.ok) {
+              const ocrData = await newOcrResponse.json();
+              console.log('Datos OCR obtenidos después del procesamiento:', ocrData);
+              updateTransactionForm(documentId, ocrData.extractedData);
+              showOcrStatus('success', 'Documento analizado exitosamente');
+            } else {
+              console.log('OCR aún procesando, formulario vacío');
+              updateTransactionForm(documentId, null);
+              showOcrStatus('loading', 'Procesamiento en curso...');
+            }
+          } else {
+            throw new Error('Error al iniciar el procesamiento OCR');
+          }
+        } else {
+          throw new Error('Error al obtener datos OCR');
+        }
+        
+      } catch (error) {
+        console.error('Error analizando documento:', error);
+        showOcrStatus('error', `Error: ${error.message}`);
+        
+        // Mostrar formulario vacío en caso de error
+        updateTransactionForm(documentId, null);
+      }
+    }
   </script>
 </body>
 </html>

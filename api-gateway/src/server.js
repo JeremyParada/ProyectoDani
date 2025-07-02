@@ -96,6 +96,7 @@ app.use('/api/auth', createProxyMiddleware({
   secure: false
 }));
 
+/*
 // Proxy for document service
 app.use('/api/documents', authMiddleware, createProxyMiddleware({
   target: 'http://document-service:3002',
@@ -120,6 +121,63 @@ app.use('/api/documents', authMiddleware, createProxyMiddleware({
     res.status(500).json({ message: 'Error interno del proxy' });
   }
 }));
+*/
+
+// Route for getting documents list
+app.get('/api/documents/documents', authMiddleware, async (req, res) => {
+  const token = req.headers.authorization;
+  
+  try {
+    const response = await axios.get(
+      'http://document-service:3002/documents',
+      {
+        headers: {
+          'Authorization': token
+        },
+        timeout: 30000
+      }
+    );
+    
+    res.status(response.status).json(response.data);
+    
+  } catch (error) {
+    console.error('Documents list error:', error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ 
+        message: 'Error al obtener documentos',
+        error: error.message
+      });
+    }
+  }
+});
+
+// Route for document upload
+app.post('/api/documents/upload', authMiddleware, (req, res) => {
+  const token = req.headers.authorization;
+  
+  const proxy = createProxyMiddleware({
+    target: 'http://document-service:3002',
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/documents/upload': '/upload'
+    },
+    onProxyReq: (proxyReq) => {
+      proxyReq.setHeader('Authorization', token);
+    },
+    onError: (err, req, res) => {
+      console.error('Upload proxy error:', err);
+      res.status(500).json({ 
+        message: 'Error al subir documento',
+        error: err.message
+      });
+    }
+  });
+  
+  proxy(req, res);
+});
 
 app.use('/api/financial', authMiddleware, createProxyMiddleware({ 
   target: 'http://financial-service:3003',
@@ -196,52 +254,86 @@ app.get('/api/documents/view-encoded/:encodedObjectName', authMiddleware, (req, 
   proxy(req, res);
 });
 
-// Proxy for OCR data
-app.get('/api/documents/ocr-data/:documentId', authMiddleware, (req, res) => {
+app.get('/api/documents/ocr-data/:documentId', authMiddleware, async (req, res) => {
   const token = req.headers.authorization;
+  const documentId = req.params.documentId;
   
-  console.log(`Proxy OCR data request for document: ${req.params.documentId}`);
+  console.log(`API Gateway: Getting OCR data for document ${documentId}`);
   
-  const proxy = createProxyMiddleware({
-    target: 'http://document-service:3002',
-    changeOrigin: true,
-    pathRewrite: {
-      [`^/api/documents/ocr-data/${req.params.documentId}`]: `/ocr-data/${req.params.documentId}`
-    },
-    onProxyReq: (proxyReq, req) => {
-      console.log(`Proxying OCR data request with token: ${token ? token.substring(0, 30) + '...' : 'none'}`);
-      if (token) {
-        proxyReq.setHeader('Authorization', token);
+  try {
+    const response = await axios.get(
+      `http://document-service:3002/ocr-data/${documentId}`,
+      {
+        headers: {
+          'Authorization': token
+        },
+        timeout: 30000
       }
-    },
-    onProxyRes: (proxyRes, req, res) => {
-      console.log(`OCR data proxy response status: ${proxyRes.statusCode}`);
-    },
-    onError: (err, req, res) => {
-      console.error('OCR data proxy error:', err);
-      res.status(500).json({ message: 'Error interno del proxy OCR' });
+    );
+    
+    console.log(`OCR data response status: ${response.status}`);
+    res.status(response.status).json(response.data);
+    
+  } catch (error) {
+    console.error('OCR data error:', error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ 
+        message: 'Error al obtener datos OCR',
+        error: error.message
+      });
     }
-  });
-  
-  proxy(req, res);
+  }
 });
 
-// Ruta para crear transacciones desde documentos
-app.use('/api/documents/create-transaction/:documentId', authMiddleware, (req, res) => {
+// Reemplaza la ruta existente con esta versión corregida
+app.post('/api/documents/create-transaction/:documentId', authMiddleware, async (req, res) => {
   const token = req.headers.authorization;
+  const documentId = req.params.documentId;
   
-  const proxy = createProxyMiddleware({
-    target: 'http://document-service:3002',
-    changeOrigin: true,
-    pathRewrite: {
-      [`^/api/documents/create-transaction/:documentId`]: `/create-transaction/${req.params.documentId}`
-    },
-    onProxyReq: (proxyReq) => {
-      proxyReq.setHeader('Authorization', token);
+  console.log(`API Gateway: Creating transaction for document ${documentId}`);
+  console.log('Request body:', req.body);
+  
+  try {
+    // Hacer la request directamente en lugar de usar proxy
+    const response = await axios.post(
+      `http://document-service:3002/create-transaction/${documentId}`,
+      req.body, // Pasar el body directamente
+      {
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000 // 30 segundos de timeout
+      }
+    );
+    
+    console.log(`Create-transaction response status: ${response.status}`);
+    res.status(response.status).json(response.data);
+    
+  } catch (error) {
+    console.error('Create-transaction error:', error.message);
+    
+    if (error.response) {
+      // Error del servidor de destino
+      console.error('Error response status:', error.response.status);
+      console.error('Error response data:', error.response.data);
+      res.status(error.response.status).json(error.response.data);
+    } else if (error.code === 'ECONNABORTED') {
+      // Timeout
+      res.status(408).json({ 
+        message: 'Timeout al crear la transacción. Intente nuevamente.'
+      });
+    } else {
+      // Error de conexión u otro
+      res.status(500).json({ 
+        message: 'Error al comunicarse con el servicio de documentos',
+        error: error.message
+      });
     }
-  });
-  
-  proxy(req, res);
+  }
 });
 
 // Ruta para eliminar documentos
@@ -271,23 +363,43 @@ app.delete('/api/documents/documents/:documentId', authMiddleware, (req, res) =>
   proxy(req, res);
 });
 
-// Añadir proxy para el endpoint de procesamiento
-app.post('/api/documents/process/:documentId', authMiddleware, (req, res) => {
+// Add this route for document processing
+app.post('/api/documents/process/:documentId', authMiddleware, async (req, res) => {
   const token = req.headers.authorization;
+  const documentId = req.params.documentId;
   
-  const proxy = createProxyMiddleware({
-    target: 'http://document-service:3002',
-    changeOrigin: true,
-    pathRewrite: {
-      [`^/api/documents/process/:documentId`]: `/process/${req.params.documentId}`
-    },
-    onProxyReq: (proxyReq) => {
-      proxyReq.setHeader('Authorization', token);
+  console.log(`API Gateway: Processing document ${documentId}`);
+  
+  try {
+    const response = await axios.post(
+      `http://document-service:3002/process/${documentId}`,
+      req.body,
+      {
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 60000 // 60 segundos para procesamiento OCR
+      }
+    );
+    
+    console.log(`Process document response status: ${response.status}`);
+    res.status(response.status).json(response.data);
+    
+  } catch (error) {
+    console.error('Process document error:', error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ 
+        message: 'Error al procesar documento',
+        error: error.message
+      });
     }
-  });
-  
-  proxy(req, res);
+  }
 });
+
 
 // Ruta para eliminar transacciones
 app.delete('/api/financial/transactions/:transactionId', async (req, res) => {
