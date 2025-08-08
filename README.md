@@ -21,6 +21,20 @@ This project is a microservices-based application designed for personal finance 
 
 ## Setup Instructions
 
+### Option 1: GitHub Codespaces (Recommended - Free Cloud Development)
+1. Go to the GitHub repository page
+2. Click the green "Code" button
+3. Select the "Codespaces" tab
+4. Click "Create codespace on main"
+5. Wait for the environment to load (2-3 minutes)
+6. Once loaded, open the terminal and run:
+   ```bash
+   docker-compose up --build
+   ```
+7. Access the application through the automatically forwarded ports
+8. **No installation required!** Works in any browser
+
+### Option 2: Local Development
 1. Ensure Docker and Docker Compose are installed on your machine.
 2. Clone the repository to your local machine.
 3. Navigate to the project root directory.
@@ -28,8 +42,21 @@ This project is a microservices-based application designed for personal finance 
 
 ## Usage
 
+### In Codespaces:
+- The API Gateway will be available through port 3000 (automatically forwarded)
+- MinIO Console available through port 9000
+- Click on the "Ports" tab in VS Code to see all available services
+
+### Local Development:
 - Access the API Gateway at `http://localhost:3000` (or the specified port) to interact with the services.
 - Use the defined routes for authentication, document management, and financial transactions.
+
+## Access for Collaborators
+
+If you're a collaborator on this project:
+1. Make sure you have access to the GitHub repository
+2. Follow the "GitHub Codespaces" setup instructions above
+3. No additional software installation needed!
 
 ## Contributing
 

@@ -1,0 +1,31 @@
+{
+  "name": "Personal Finance System",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+  "forwardPorts": [3000, 5432, 9000, 6379],
+  "portsAttributes": {
+    "3000": {
+      "label": "API Gateway",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    },
+    "9000": {
+      "label": "MinIO Console"
+    },
+    "6379": {
+      "label": "Redis"
+    }
+  },
+  "postCreateCommand": "echo 'Codespace ready! Run: docker-compose up --build'",
+  "remoteUser": "codespace"
+}
